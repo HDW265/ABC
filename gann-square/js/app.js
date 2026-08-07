@@ -2,12 +2,22 @@
   const $ = (id) => document.getElementById(id);
 
   const els = {
+    layout: $("layout"),
+    panelLeft: $("panelLeft"),
+    panelRight: $("panelRight"),
+    toggleLeft: $("toggleLeft"),
+    toggleRight: $("toggleRight"),
+    reopenLeft: $("reopenLeft"),
+    reopenRight: $("reopenRight"),
     preset: $("preset"),
     begin: $("begin"),
     step: $("step"),
     rings: $("rings"),
+    ringsInput: $("ringsInput"),
+    ringsMax: $("ringsMax"),
     ringsLabel: $("ringsLabel"),
     sizeHint: $("sizeHint"),
+    perfHint: $("perfHint"),
     beginDate: $("beginDate"),
     timeStepUnit: $("timeStepUnit"),
     priceControls: $("priceControls"),
@@ -44,6 +54,8 @@
     stepChips: $("stepChips"),
   };
 
+  const STORAGE_KEY = "gann-square-ui-v1";
+
   const state = {
     mode: "price",
     zoom: 1,
@@ -51,7 +63,96 @@
     selectedKey: null,
     lookupKey: null,
     renderTimer: null,
+    ringsMax: 50,
+    leftCollapsed: false,
+    rightCollapsed: false,
   };
+
+  function loadPrefs() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const prefs = JSON.parse(raw);
+      if (Number.isFinite(prefs.ringsMax)) state.ringsMax = clampRingsMax(prefs.ringsMax);
+      if (typeof prefs.leftCollapsed === "boolean") state.leftCollapsed = prefs.leftCollapsed;
+      if (typeof prefs.rightCollapsed === "boolean") state.rightCollapsed = prefs.rightCollapsed;
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
+  function savePrefs() {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ringsMax: state.ringsMax,
+        leftCollapsed: state.leftCollapsed,
+        rightCollapsed: state.rightCollapsed,
+      })
+    );
+  }
+
+  function clampRingsMax(value) {
+    return Math.min(120, Math.max(10, Math.floor(Number(value) || 50)));
+  }
+
+  function clampRings(value) {
+    const rings = Math.floor(Number(value) || 3);
+    return Math.min(state.ringsMax, Math.max(3, rings));
+  }
+
+  function applyRingsMax(max) {
+    state.ringsMax = clampRingsMax(max);
+    els.ringsMax.value = String(state.ringsMax);
+    els.rings.max = String(state.ringsMax);
+    els.ringsInput.max = String(state.ringsMax);
+    const rings = clampRings(els.rings.value);
+    syncRingsControls(rings);
+    savePrefs();
+  }
+
+  function syncRingsControls(rings) {
+    const v = clampRings(rings);
+    els.rings.value = String(v);
+    els.ringsInput.value = String(v);
+    els.ringsLabel.textContent = String(v);
+  }
+
+  function setPanelCollapsed(side, collapsed) {
+    if (side === "left") {
+      state.leftCollapsed = collapsed;
+      els.layout.classList.toggle("left-collapsed", collapsed);
+      els.reopenLeft.classList.toggle("hidden", !collapsed);
+      els.toggleLeft.setAttribute("aria-label", collapsed ? "展开参数面板" : "收起参数面板");
+      els.toggleLeft.title = collapsed ? "展开参数面板" : "收起参数面板";
+    } else {
+      state.rightCollapsed = collapsed;
+      els.layout.classList.toggle("right-collapsed", collapsed);
+      els.reopenRight.classList.toggle("hidden", !collapsed);
+      els.toggleRight.setAttribute("aria-label", collapsed ? "展开解读面板" : "收起解读面板");
+      els.toggleRight.title = collapsed ? "展开解读面板" : "收起解读面板";
+    }
+    savePrefs();
+  }
+
+  function togglePanel(side) {
+    if (side === "left") setPanelCollapsed("left", !state.leftCollapsed);
+    else setPanelCollapsed("right", !state.rightCollapsed);
+  }
+
+  function updatePerfHint(rings, cellCount) {
+    if (rings >= 30) {
+      els.perfHint.textContent = `当前 ${cellCount} 格，渲染可能较慢，建议配合缩放查看`;
+      els.perfHint.classList.remove("hidden");
+      els.perfHint.classList.add("warn");
+    } else if (rings >= 20) {
+      els.perfHint.textContent = `当前 ${cellCount} 格，环数较大时建议收起侧栏以扩大画布`;
+      els.perfHint.classList.remove("hidden", "warn");
+    } else {
+      els.perfHint.classList.add("hidden");
+      els.perfHint.classList.remove("warn");
+    }
+  }
 
   function todayISO() {
     const d = new Date();
@@ -68,7 +169,7 @@
   }
 
   function readParams() {
-    const rings = Number(els.rings.value);
+    const rings = clampRings(els.rings.value);
     return {
       mode: state.mode,
       begin: Number(els.begin.value),
@@ -91,10 +192,7 @@
       els.step.value = params.step;
       syncStepChips(params.step);
     }
-    if (params.rings != null) {
-      els.rings.value = params.rings;
-      els.ringsLabel.textContent = String(params.rings);
-    }
+    if (params.rings != null) syncRingsControls(params.rings);
     if (params.beginDate) els.beginDate.value = params.beginDate;
     if (params.timeUnit) els.timeStepUnit.value = params.timeUnit;
     if (params.rowOffset != null) els.rowOffset.value = params.rowOffset;
@@ -130,8 +228,8 @@
 
   function scheduleRender() {
     clearTimeout(state.renderTimer);
-    const rings = Number(els.rings.value);
-    const delay = rings > 12 ? 180 : 80;
+    const rings = clampRings(els.rings.value);
+    const delay = rings > 25 ? 280 : rings > 15 ? 180 : 80;
     state.renderTimer = setTimeout(render, delay);
   }
 
@@ -139,13 +237,20 @@
     const params = readParams();
     if (!Number.isFinite(params.begin)) params.begin = 1;
     if (!Number.isFinite(params.step) || params.step <= 0) params.step = 1;
+    syncRingsControls(params.rings);
 
     const square = GannSquare.generateSquare(params);
     state.square = square;
 
     const size = square.size;
-    els.ringsLabel.textContent = String(params.rings);
-    els.sizeHint.textContent = `边长 ${size} × ${size} · 共 ${size * size} 格`;
+    const cellCount = size * size;
+    els.sizeHint.textContent = `边长 ${size} × ${size} · 共 ${cellCount.toLocaleString()} 格`;
+    updatePerfHint(params.rings, cellCount);
+
+    els.square.className = "square";
+    if (params.rings >= 15) els.square.classList.add("dense");
+    if (params.rings >= 22) els.square.classList.add("compact", "no-anim");
+    else if (params.rings >= 15) els.square.classList.add("no-anim");
 
     els.square.style.gridTemplateColumns = `repeat(${size}, auto)`;
     els.square.innerHTML = "";
@@ -157,7 +262,7 @@
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "cell";
-        btn.style.animationDelay = `${Math.min(cell.ring, 8) * 18}ms`;
+        if (params.rings < 15) btn.style.animationDelay = `${Math.min(cell.ring, 8) * 18}ms`;
         btn.textContent = cell.display;
         btn.dataset.row = String(r);
         btn.dataset.col = String(c);
@@ -404,6 +509,7 @@
       hlDiag: true,
       hlSquares: false,
     });
+    applyRingsMax(50);
     els.preset.value = "classic";
     state.selectedKey = null;
     state.lookupKey = null;
@@ -419,14 +525,35 @@
       tab.addEventListener("click", () => setMode(tab.dataset.mode));
     });
 
-    ["begin", "step", "rings", "beginDate", "timeStepUnit", "rowOffset", "colOffset"].forEach((id) => {
-      els[id === "timeStepUnit" ? "timeStepUnit" : id].addEventListener("input", scheduleRender);
-      els[id === "timeStepUnit" ? "timeStepUnit" : id].addEventListener("change", scheduleRender);
+    ["begin", "step", "rings", "ringsInput", "beginDate", "timeStepUnit", "rowOffset", "colOffset"].forEach((id) => {
+      const el = els[id];
+      if (!el) return;
+      el.addEventListener("input", scheduleRender);
+      el.addEventListener("change", scheduleRender);
     });
 
     els.rings.addEventListener("input", () => {
-      els.ringsLabel.textContent = els.rings.value;
+      syncRingsControls(els.rings.value);
     });
+
+    els.ringsInput.addEventListener("input", () => {
+      syncRingsControls(els.ringsInput.value);
+    });
+
+    els.ringsInput.addEventListener("change", () => {
+      syncRingsControls(els.ringsInput.value);
+      scheduleRender();
+    });
+
+    els.ringsMax.addEventListener("change", () => {
+      applyRingsMax(els.ringsMax.value);
+      scheduleRender();
+    });
+
+    els.toggleLeft.addEventListener("click", () => togglePanel("left"));
+    els.toggleRight.addEventListener("click", () => togglePanel("right"));
+    els.reopenLeft.addEventListener("click", () => setPanelCollapsed("left", false));
+    els.reopenRight.addEventListener("click", () => setPanelCollapsed("right", false));
 
     ["hlCross", "hlDiag", "hlSquares"].forEach((id) => {
       els[id].addEventListener("change", scheduleRender);
@@ -466,6 +593,10 @@
 
   function init() {
     els.beginDate.value = todayISO();
+    loadPrefs();
+    applyRingsMax(state.ringsMax);
+    setPanelCollapsed("left", state.leftCollapsed);
+    setPanelCollapsed("right", state.rightCollapsed);
     bind();
     const fromUrl = loadUrlState();
     if (!fromUrl) applyParams({ mode: "price", begin: 1, step: 1, rings: 6 });

@@ -35,8 +35,13 @@
     </div>
   </header>
 
-  <main class="layout">
-    <aside class="panel controls" aria-label="参数面板">
+  <main class="layout" id="layout">
+    <aside class="panel controls" id="panelLeft" aria-label="参数面板">
+      <div class="panel-head">
+        <p class="panel-title">参数</p>
+        <button type="button" class="panel-toggle" id="toggleLeft" aria-label="收起参数面板" title="收起参数面板">‹</button>
+      </div>
+      <div class="panel-body" id="panelLeftBody">
       <div class="mode-tabs" role="tablist" aria-label="模式切换">
         <button type="button" class="tab active" role="tab" aria-selected="true" data-mode="price">价格</button>
         <button type="button" class="tab" role="tab" aria-selected="false" data-mode="time">时间</button>
@@ -83,9 +88,13 @@
         <h2>结构</h2>
         <label class="field">
           <span>环数 Rings <em id="ringsLabel">6</em></span>
-          <input id="rings" type="range" min="3" max="15" value="6" />
+          <div class="rings-row">
+            <input id="rings" type="range" min="3" max="50" value="6" />
+            <input id="ringsInput" type="number" min="3" max="50" value="6" step="1" aria-label="环数数值" />
+          </div>
         </label>
         <p class="hint" id="sizeHint">边长 11 × 11 · 共 121 格</p>
+        <p class="hint perf-hint hidden" id="perfHint"></p>
       </section>
 
       <section class="control-block">
@@ -107,8 +116,13 @@
       </section>
 
       <details class="advanced">
-        <summary>高级 · 中心偏移</summary>
+        <summary>高级 · 中心偏移 / 环数上限</summary>
         <div class="advanced-body">
+          <label class="field">
+            <span>环数上限 Max Rings</span>
+            <input id="ringsMax" type="number" min="10" max="120" value="50" step="1" />
+          </label>
+          <p class="hint">滑块与输入框的上限，默认 50。环数越大格子越多，超过 25 环可能变慢。</p>
           <label class="field">
             <span>行偏移</span>
             <input id="rowOffset" type="number" value="0" step="1" />
@@ -124,12 +138,17 @@
       <div class="control-footer">
         <button type="button" class="btn ghost" id="btnReset">重置</button>
       </div>
+      </div>
     </aside>
 
     <section class="stage" aria-label="九方图画布">
       <div class="stage-toolbar">
-        <p class="stage-title" id="stageTitle">价格方阵</p>
+        <div class="stage-toolbar-left">
+          <button type="button" class="btn ghost compact panel-reopen hidden" id="reopenLeft" aria-label="展开参数面板" title="展开参数">参数 ›</button>
+          <p class="stage-title" id="stageTitle">价格方阵</p>
+        </div>
         <div class="zoom-controls">
+          <button type="button" class="btn ghost compact panel-reopen hidden" id="reopenRight" aria-label="展开解读面板" title="展开解读">‹ 解读</button>
           <button type="button" class="btn ghost compact" id="btnZoomOut" aria-label="缩小">−</button>
           <span id="zoomLabel">100%</span>
           <button type="button" class="btn ghost compact" id="btnZoomIn" aria-label="放大">+</button>
@@ -144,7 +163,12 @@
       <p class="toast" id="toast" role="status" aria-live="polite"></p>
     </section>
 
-    <aside class="panel readout" aria-label="解读面板">
+    <aside class="panel readout" id="panelRight" aria-label="解读面板">
+      <div class="panel-head">
+        <p class="panel-title">解读</p>
+        <button type="button" class="panel-toggle" id="toggleRight" aria-label="收起解读面板" title="收起解读面板">›</button>
+      </div>
+      <div class="panel-body" id="panelRightBody">
       <h2>选中解读</h2>
       <div id="emptyReadout" class="empty-readout">
         点击格子查看角度、环数与关联价位。
@@ -171,6 +195,7 @@
           <li><span class="swatch diag"></span>对角 45°/135°</li>
           <li><span class="swatch ring"></span>环层底色交替</li>
         </ul>
+      </div>
       </div>
     </aside>
   </main>
