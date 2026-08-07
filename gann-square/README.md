@@ -85,53 +85,177 @@ https://hdw265.github.io/ABC/gann-square/
 
 ## 方式 C：本机小服务器预览（最稳）
 
-适合：本地开发、调试，或方式 B 打不开。
+适合：方式 B 双击异常、想本地调试、或习惯用 `localhost` 访问。
 
-### 前提
+下面以 **Windows 10/11** 为主（你当前环境：`E:\ABC\ABC-main`），macOS / Linux 步骤附在文末。
 
-电脑已安装 **Python 3**（多数系统自带）。终端执行：
+---
 
-```bash
-python3 --version
+### 第 0 步：确认文件夹位置
+
+解压后的目录应类似：
+
+```text
+E:\ABC\ABC-main\
+├── README.md
+└── gann-square\
+    ├── index.html
+    ├── css\
+    └── js\
 ```
 
-能看到版本号即可。
+**重要：** 终端要进入 **`ABC-main` 这一层**（能看到 `gann-square` 文件夹），不要进到 `gann-square` 里面。
 
-### 步骤
+---
 
-1. 打开终端（Terminal / PowerShell / CMD）  
+### 第 1 步：检查是否已安装 Python
 
-2. 进入**仓库根目录**（里面有 `gann-square` 文件夹的那一层）：  
+1. 按键盘 `Win + R`，输入 `cmd`，回车，打开 **命令提示符**  
+   （也可以用 **PowerShell**，步骤相同）
 
-   ```bash
-   cd /你的路径/ABC
+2. 输入下面命令并回车：
+
+   ```bat
+   python --version
    ```
 
-   Windows 示例：
+3. 若显示类似 `Python 3.11.x` → 已安装，跳到 **第 2 步**
 
-   ```bash
-   cd C:\Users\你的用户名\Downloads\ABC
-   ```
+4. 若提示 `'python' 不是内部或外部命令` → 需要安装 Python：  
+   - 打开 https://www.python.org/downloads/  
+   - 下载 Windows 安装包  
+   - 安装时 **勾选 “Add Python to PATH”**（非常重要）  
+   - 安装完成后 **关闭并重新打开** cmd，再执行 `python --version`
 
-3. 启动服务：  
+---
 
-   ```bash
-   python3 -m http.server 8080
-   ```
+### 第 2 步：进入项目目录
 
-   Windows 若 `python3` 不可用，试：
+在 cmd 里输入（根据你的实际路径修改）：
 
-   ```bash
-   python -m http.server 8080
-   ```
+```bat
+E:
+cd \ABC\ABC-main
+```
 
-4. 保持终端窗口不要关，用浏览器打开：  
+确认当前目录：
+
+```bat
+dir
+```
+
+应能看到 `gann-square` 文件夹和 `README.md`。
+
+也可以一条命令进入：
+
+```bat
+cd /d E:\ABC\ABC-main
+```
+
+> `cd /d` 可以同时切换盘符和目录（从 C 盘跳到 E 盘时常用）。
+
+---
+
+### 第 3 步：启动本地服务器
+
+在 **同一窗口** 输入：
+
+```bat
+python -m http.server 8080
+```
+
+若 `python` 不行，试：
+
+```bat
+py -m http.server 8080
+```
+
+**成功时**，窗口会显示类似：
+
+```text
+Serving HTTP on :: port 8080 (http://[::]:8080/) ...
+```
+
+或：
+
+```text
+Serving HTTP on 0.0.0.0 port 8080 ...
+```
+
+**注意：**
+- 这个黑色窗口 **不要关**，关了服务就停了  
+- `8080` 是端口号，可以改成 `8888` 等，只要浏览器地址里一致即可
+
+---
+
+### 第 4 步：用浏览器打开页面
+
+1. 打开 Chrome / Edge  
+2. 地址栏输入（复制粘贴）：
 
    ```text
    http://localhost:8080/gann-square/
    ```
 
-5. 用完后在终端按 `Ctrl + C` 停止服务。
+   或：
+
+   ```text
+   http://127.0.0.1:8080/gann-square/
+   ```
+
+3. 回车后应看到 **江恩九方图** 界面（左侧参数、中间格子、右侧解读）
+
+**不要** 写成 `file:///...`，方式 C 用的是 `http://localhost:...`
+
+---
+
+### 第 5 步：用完后关闭服务
+
+回到 cmd 窗口，按：
+
+```text
+Ctrl + C
+```
+
+提示 `Terminate batch job (Y/N)?` 时输入 `Y` 回车，或直接再按一次 `Ctrl + C`。
+
+---
+
+### 方式 C 完整命令一览（复制即用）
+
+假设项目在 `E:\ABC\ABC-main`：
+
+```bat
+cd /d E:\ABC\ABC-main
+python -m http.server 8080
+```
+
+浏览器打开：`http://localhost:8080/gann-square/`
+
+---
+
+### 常见问题
+
+| 现象 | 处理 |
+|------|------|
+| `Address already in use` / 端口被占用 | 换端口：`python -m http.server 8888`，浏览器改开 `http://localhost:8888/gann-square/` |
+| 页面 404 | 检查是否进错目录；必须在有 `gann-square` 文件夹的那一层启动 |
+| 页面空白 | 确认 URL 末尾是 `/gann-square/` 或 `/gann-square/index.html` |
+| 改了代码没变化 | 浏览器 `Ctrl + F5` 强制刷新 |
+| 防火墙弹窗 | 选「允许访问」（仅本机 localhost，一般安全） |
+
+---
+
+### macOS / Linux 用户
+
+```bash
+cd ~/Downloads/ABC-main
+python3 -m http.server 8080
+```
+
+浏览器打开：`http://localhost:8080/gann-square/`
+
+停止服务：`Ctrl + C`
 
 ---
 

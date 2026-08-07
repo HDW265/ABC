@@ -14,10 +14,19 @@
 
 > 若 A 刚更新后仍 404，等 1–2 分钟再试。若 B 解压后只有 README，说明 ZIP 是旧版，请重新从 `main` 下载。
 
-```bash
-cd ABC
-python3 -m http.server 8080
-# 浏览器打开 http://localhost:8080/gann-square/
-```
+### 方式 C 详细步骤（Windows 示例）
+
+假设已解压到 `E:\ABC\ABC-main`：
+
+1. `Win + R` → 输入 `cmd` → 回车  
+2. 执行：
+   ```bat
+   cd /d E:\ABC\ABC-main
+   python -m http.server 8080
+   ```
+3. 浏览器打开：**http://localhost:8080/gann-square/**  
+4. 用完在 cmd 按 `Ctrl + C` 停止  
+
+完整图文说明见 [gann-square/README.md](./gann-square/README.md#方式-c本机小服务器预览最稳)
 
 **结论：不必为了“能用网页”而必须下载源码**——部署到 GitHub Pages 后，用链接即可；本机预览才需要本地文件。
