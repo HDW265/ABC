@@ -1,26 +1,21 @@
 /**
- * Path runner: alternate 45° diagonal jumps and 180° axis flips
- * on the Square of Nine until the soft target is reached.
+ * Path runner: alternate 45° and 180° steps on the Square of Nine.
  *
- * Canonical down-chain (begin=1, step=1):
- * 922 → 880 → 833 → 793 → 749 → 711 → 669 → …
- * 45°   180°  45°   180°  45°   180°
+ * Downward search rule (matches manual charting):
+ * - 45°: among cells on 45° diagonal rays from the current cell,
+ *   take the nearest price toward the target (scan n-1, n-2… until a
+ *   diagonal hit — e.g. 594 → 560).
+ * - 180°: among cells on the same row/column on the opposite side of
+ *   center, take the nearest price toward the target (e.g. 560 → 523).
  *
- * 45° rules:
- * - After a column 180° (or at start): prefer same-ring transforms
- *   (swap after flip_col; otherwise best same-ring toward target).
- * - After a row 180°: prefer cross-ring far diagonal landing on ring-1.
+ * Canonical chain (begin=1, step=1, down):
+ * 922 → 880 → 833 → 793 → 749 → 711 → 669 → 633 → 594 → 560 → 523 → …
  */
 (function (global) {
-  const MAX_STEPS = 48;
+  const MAX_STEPS = 64;
 
   function towardPrice(a, b, direction) {
     return direction === "down" ? b < a : b > a;
-  }
-
-  function notPastTarget(value, target, direction) {
-    if (direction === "down") return value >= target;
-    return value <= target;
   }
 
   function reached(value, target, direction, eps) {
@@ -33,201 +28,105 @@
     return { dr: cell.row - square.cx, dc: cell.col - square.cy };
   }
 
-  function cellAt(square, dr, dc) {
-    const r = square.cx + dr;
-    const c = square.cy + dc;
-    if (r < 0 || c < 0 || r >= square.size || c >= square.size) return null;
-    return square.meta[r][c];
-  }
-
   function priceOf(cell) {
     return cell.mode === "time" ? cell.index : cell.value;
   }
 
-  function ringOf(cell, square) {
-    const { dr, dc } = rel(cell, square);
-    return Math.max(Math.abs(dr), Math.abs(dc));
+  function sortToward(a, b, direction) {
+    // Nearest toward target: when going down, higher price first (first hit scanning down)
+    return direction === "down" ? b - a : a - b;
   }
 
   /**
-   * Same-ring 45° transforms: (dr,dc)→(-dc,-dr) or (dr,dc)→(dc,dr)
+   * 45° candidates: all cells on diagonal rays from current (|Δrow|===|Δcol|≠0).
    */
-  function candidates45SameRing(square, cell) {
-    const { dr, dc } = rel(cell, square);
-    const transforms = [
-      { type: "neg_swap", dr: -dc, dc: -dr },
-      { type: "swap", dr: dc, dc: dr },
-    ];
-    const out = [];
-    for (const t of transforms) {
-      const next = cellAt(square, t.dr, t.dc);
-      if (!next || next.index === cell.index) continue;
-      out.push({
-        cell: next,
-        move: "45",
-        transform: t.type,
-        kind: "same",
-        axis: "diag",
-      });
-    }
-    return out;
-  }
-
-  /**
-   * Cross-ring 45°: along each grid diagonal, collect all hits on ring R-1
-   * and keep the farthest (e.g. 749 → 711, not the near-side 643).
-   */
-  function candidates45CrossFar(square, cell) {
+  function candidates45(square, cell, direction) {
     const { dr: dr0, dc: dc0 } = rel(cell, square);
-    const R = Math.max(Math.abs(dr0), Math.abs(dc0));
-    if (R <= 0) return [];
-
-    const dirs = [
-      [1, 1],
-      [1, -1],
-      [-1, 1],
-      [-1, -1],
-    ];
-    const out = [];
-
-    for (const [ddr, ddc] of dirs) {
-      let dr = dr0;
-      let dc = dc0;
-      const hits = [];
-      for (let i = 0; i < square.size * 2; i += 1) {
-        dr += ddr;
-        dc += ddc;
-        const next = cellAt(square, dr, dc);
-        if (!next) break;
-        const ring = Math.max(Math.abs(dr), Math.abs(dc));
-        if (ring === R - 1) {
-          hits.push({
-            cell: next,
-            move: "45",
-            transform: "cross_far",
-            kind: "cross",
-            axis: "diag",
-            dist: i + 1,
-            dir: [ddr, ddc],
-          });
-        }
-      }
-      if (!hits.length) continue;
-      hits.sort((a, b) => b.dist - a.dist);
-      out.push(hits[0]);
-    }
-    return out;
-  }
-
-  function candidates45(square, cell) {
-    return [...candidates45SameRing(square, cell), ...candidates45CrossFar(square, cell)];
-  }
-
-  /**
-   * 180° candidates: same row or same column, opposite side of center.
-   */
-  function candidates180(square, cell) {
-    const { dr, dc } = rel(cell, square);
+    const currentPrice = priceOf(cell);
     const out = [];
 
     for (let r = 0; r < square.size; r += 1) {
-      const next = square.meta[r][cell.col];
-      if (!next || next.index === cell.index) continue;
-      const ndr = r - square.cx;
-      const opposite = dr === 0 ? ndr !== 0 : ndr * dr < 0;
-      if (!opposite) continue;
-      out.push({
-        cell: next,
-        move: "180",
-        transform: "flip_col",
-        axis: "col",
-        reflectGap: Math.abs(ndr + dr),
-      });
+      for (let c = 0; c < square.size; c += 1) {
+        const next = square.meta[r][c];
+        if (!next || next.index === cell.index) continue;
+        const dr = r - square.cx;
+        const dc = c - square.cy;
+        const ddr = dr - dr0;
+        const ddc = dc - dc0;
+        if (Math.abs(ddr) !== Math.abs(ddc) || ddr === 0) continue;
+        const price = priceOf(next);
+        if (!towardPrice(currentPrice, price, direction)) continue;
+        out.push({
+          cell: next,
+          move: "45",
+          transform: "diag_ray",
+          axis: "diag",
+          price,
+        });
+      }
     }
 
-    for (let c = 0; c < square.size; c += 1) {
-      const next = square.meta[cell.row][c];
-      if (!next || next.index === cell.index) continue;
-      const ndc = c - square.cy;
-      const opposite = dc === 0 ? ndc !== 0 : ndc * dc < 0;
-      if (!opposite) continue;
-      out.push({
-        cell: next,
-        move: "180",
-        transform: "flip_row",
-        axis: "row",
-        reflectGap: Math.abs(ndc + dc),
-      });
-    }
+    out.sort((a, b) => sortToward(a.price, b.price, direction));
     return out;
   }
 
-  function filterToward(cands, currentPrice, targetPrice, direction) {
-    const toward = cands.filter((c) => towardPrice(currentPrice, priceOf(c.cell), direction));
-    const pool = toward.length ? toward : cands.slice();
-    const notPast = pool.filter((c) => notPastTarget(priceOf(c.cell), targetPrice, direction));
-    return notPast.length ? notPast : pool;
-  }
-
   /**
-   * @param {'row'|'col'|null} prev180Axis
+   * 180° candidates: same row or column, opposite side of center.
    */
-  function pick45(cands, currentPrice, targetPrice, direction, prev180Axis) {
-    if (!cands.length) return null;
-    let use = filterToward(cands, currentPrice, targetPrice, direction);
-    if (!use.length) return null;
+  function candidates180(square, cell, direction) {
+    const { dr: dr0, dc: dc0 } = rel(cell, square);
+    const currentPrice = priceOf(cell);
+    const out = [];
 
-    if (prev180Axis === "row") {
-      const cross = use.filter((c) => c.kind === "cross");
-      if (cross.length) use = cross;
-      // Prefer farthest diagonal landing (749→711 over near-side 643)
-      use.sort((a, b) => {
-        const da = b.dist || 0;
-        const db = a.dist || 0;
-        if (da !== db) return da - db;
-        // then stay higher when going down (slower descent)
-        if (direction === "down") return priceOf(b.cell) - priceOf(a.cell);
-        return priceOf(a.cell) - priceOf(b.cell);
-      });
-      return use[0];
+    for (let r = 0; r < square.size; r += 1) {
+      for (let c = 0; c < square.size; c += 1) {
+        const next = square.meta[r][c];
+        if (!next || next.index === cell.index) continue;
+        const sameCol = c === cell.col;
+        const sameRow = r === cell.row;
+        if (!sameCol && !sameRow) continue;
+
+        const dr = r - square.cx;
+        const dc = c - square.cy;
+
+        if (sameCol) {
+          if (dr0 === 0) {
+            if (dr === 0) continue;
+          } else if (dr * dr0 >= 0) {
+            continue;
+          }
+        }
+        if (sameRow) {
+          if (dc0 === 0) {
+            if (dc === 0) continue;
+          } else if (dc * dc0 >= 0) {
+            continue;
+          }
+        }
+
+        const price = priceOf(next);
+        if (!towardPrice(currentPrice, price, direction)) continue;
+        out.push({
+          cell: next,
+          move: "180",
+          transform: sameCol ? "flip_col" : "flip_row",
+          axis: sameCol ? "col" : "row",
+          price,
+          reflectGap: sameCol ? Math.abs(dr + dr0) : Math.abs(dc + dc0),
+        });
+      }
     }
 
-    // Start or after flip_col: prefer same-ring chain
-    const same = use.filter((c) => c.kind === "same");
-    if (same.length) use = same;
-
-    if (prev180Axis === "col") {
-      const swaps = use.filter((c) => c.transform === "swap");
-      if (swaps.length) use = swaps;
-    }
-
-    // Prefer smaller step from current (keeps 833→793 instead of 737)
-    use.sort((a, b) => {
-      const sa = Math.abs(priceOf(a.cell) - currentPrice);
-      const sb = Math.abs(priceOf(b.cell) - currentPrice);
-      if (sa !== sb) return sa - sb;
-      const da = Math.abs(priceOf(a.cell) - targetPrice);
-      const db = Math.abs(priceOf(b.cell) - targetPrice);
-      if (da !== db) return da - db;
-      return priceOf(a.cell) - priceOf(b.cell);
+    out.sort((a, b) => {
+      const byPrice = sortToward(a.price, b.price, direction);
+      if (byPrice !== 0) return byPrice;
+      return (a.reflectGap ?? 99) - (b.reflectGap ?? 99);
     });
-    return use[0];
+    return out;
   }
 
-  function pick180(cands, currentPrice, targetPrice, direction) {
-    const use = filterToward(cands, currentPrice, targetPrice, direction);
-    if (!use.length) return null;
-
-    use.sort((a, b) => {
-      const ga = a.reflectGap ?? 99;
-      const gb = b.reflectGap ?? 99;
-      if (ga !== gb) return ga - gb;
-      const da = Math.abs(priceOf(a.cell) - targetPrice);
-      const db = Math.abs(priceOf(b.cell) - targetPrice);
-      if (da !== db) return da - db;
-      return Math.abs(priceOf(a.cell) - currentPrice) - Math.abs(priceOf(b.cell) - currentPrice);
-    });
-    return use[0];
+  function pickFirst(cands) {
+    return cands.length ? cands[0] : null;
   }
 
   function findNearestCell(square, target) {
@@ -290,18 +189,14 @@
 
     let current = startCell;
     let moveKind = "45";
-    let prev180Axis = null;
     let reachedFlag = reached(priceOf(current), targetPrice, dir, eps);
 
     for (let i = 0; i < MAX_STEPS && !reachedFlag; i += 1) {
-      const price = priceOf(current);
-      let picked = null;
-      if (moveKind === "45") {
-        picked = pick45(candidates45(square, current), price, targetPrice, dir, prev180Axis);
-      } else {
-        picked = pick180(candidates180(square, current), price, targetPrice, dir);
-      }
-
+      const cands =
+        moveKind === "45"
+          ? candidates45(square, current, dir)
+          : candidates180(square, current, dir);
+      const picked = pickFirst(cands);
       if (!picked) break;
 
       if (steps.some((s) => s.cell.row === picked.cell.row && s.cell.col === picked.cell.col)) {
@@ -317,12 +212,7 @@
         transform: picked.transform,
         axis: picked.axis,
         reflectGap: picked.reflectGap,
-        kind: picked.kind,
       });
-
-      if (picked.move === "180") {
-        prev180Axis = picked.axis === "row" ? "row" : "col";
-      }
 
       reachedFlag = reached(priceOf(current), targetPrice, dir, eps);
       moveKind = moveKind === "45" ? "180" : "45";
@@ -357,8 +247,6 @@
     findNearestCell,
     minRingsForValue,
     candidates45,
-    candidates45SameRing,
-    candidates45CrossFar,
     candidates180,
     MAX_STEPS,
   };
