@@ -619,7 +619,7 @@ input[type="range"] {
 }
 
 .compact-checks {
-  grid-template-columns: repeat(3, auto);
+  grid-template-columns: repeat(2, auto);
   gap: 0.35rem 0.75rem;
 }
 

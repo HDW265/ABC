@@ -57,7 +57,6 @@
     pathSnapHint: $("pathSnapHint"),
     pathLabelIndex: $("pathLabelIndex"),
     pathLabelPrice: $("pathLabelPrice"),
-    pathLabelMove: $("pathLabelMove"),
     pathAutoExpand: $("pathAutoExpand"),
     pathCollapsePanels: $("pathCollapsePanels"),
     btnPathRun: $("btnPathRun"),
@@ -657,11 +656,9 @@
     const limit = Number.isFinite(revealUntil) ? revealUntil : steps.length - 1;
     const showIndex = els.pathLabelIndex.checked;
     const showPrice = els.pathLabelPrice.checked;
-    const showMove = els.pathLabelMove.checked;
     const rings = clampRings(els.rings.value);
     const forceIndexOnly = rings >= 19;
     const allowPrice = showPrice && !forceIndexOnly;
-    const allowMove = showMove && rings <= 10;
 
     const width = els.squareStack.offsetWidth;
     const height = els.squareStack.offsetHeight;
@@ -728,7 +725,6 @@
 
       const labels = [];
       if (allowPrice) labels.push(GannSquare.formatNumber(s.price));
-      if (allowMove && !isStart) labels.push(moveLabel(s.move));
       if (isEnd) labels.push("目标✓");
       if (labels.length) {
         const lab = document.createElementNS(ns, "text");
@@ -1032,7 +1028,7 @@
     document.querySelectorAll('input[name="pathDir"]').forEach((el) => {
       el.addEventListener("change", updateSnapHint);
     });
-    ["pathLabelIndex", "pathLabelPrice", "pathLabelMove"].forEach((id) => {
+    ["pathLabelIndex", "pathLabelPrice"].forEach((id) => {
       els[id].addEventListener("change", () => {
         if (state.pathResult) drawPathOverlay(state.pathResult);
       });
