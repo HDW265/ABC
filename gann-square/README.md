@@ -165,11 +165,21 @@ python3 --version
 **Q：一定要下载源码吗？**  
 A：不一定。用方式 A 部署后，只记网址就能开；方式 B/C 才需要本地文件。
 
+**Q：方式 A 打开是 404？**  
+A：常见原因有两个：  
+1. **代码还没在 `main` 分支** — 只有 `main` 上的文件才会被 GitHub Pages 发布。请确认仓库里能看到 `gann-square/index.html`。  
+2. **刚推送完还没部署完** — 等 1–2 分钟再刷新。  
+正确地址：`https://hdw265.github.io/ABC/gann-square/`
+
+**Q：方式 B 解压后只有 README，没有 `gann-square` 文件夹？**  
+A：说明你下载的是**旧版 ZIP**（当时 `main` 里还没有网页代码）。请重新下载：  
+1. 打开 https://github.com/HDW265/ABC  
+2. 确认分支选的是 **`main`**（不是别的分支）  
+3. 点绿色 **Code → Download ZIP**  
+4. 解压后应看到：`ABC-main/gann-square/index.html`
+
 **Q：为什么我双击打开是空白/样式乱？**  
 A：改用方式 C（`python3 -m http.server`）。
-
-**Q：GitHub Pages 404？**  
-A：确认已合并到 `main`，Pages 选了 `main` + `/ (root)`，并访问带 `/gann-square/` 的完整路径。
 
 **Q：要不要装 Node？**  
 A：不要。

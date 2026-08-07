@@ -8,9 +8,11 @@
 
 | 方式 | 做什么 | 打开哪里 |
 |------|--------|----------|
-| **A. 在线** | GitHub → Settings → Pages，选 `main` / root，保存 | `https://hdw265.github.io/ABC/gann-square/` |
-| **B. 直接打开** | 下载/克隆仓库后双击文件 | `gann-square/index.html` |
+| **A. 在线** | 直接打开（Pages 已配置在 `main`） | **https://hdw265.github.io/ABC/gann-square/** |
+| **B. 直接打开** | 从 `main` 分支重新 Download ZIP，双击文件 | `gann-square/index.html` |
 | **C. 本机服务** | 在仓库根目录运行下面命令 | `http://localhost:8080/gann-square/` |
+
+> 若 A 刚更新后仍 404，等 1–2 分钟再试。若 B 解压后只有 README，说明 ZIP 是旧版，请重新从 `main` 下载。
 
 ```bash
 cd ABC
