@@ -265,11 +265,20 @@
       el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
     }
     selectCell(cell);
-    els.lookupHint.textContent =
+    const maxVal =
       state.mode === "price"
-        ? `最接近 ${cell.display}（差值 ${GannSquare.formatNumber(diff)}）`
-        : `最接近序号 ${cell.index} → ${cell.display}`;
-    showToast("已定位");
+        ? state.square.begin + (state.square.size * state.square.size - 1) * state.square.step
+        : state.square.size * state.square.size;
+    const minVal = state.mode === "price" ? state.square.begin : 1;
+    const outOfRange = raw < minVal || raw > maxVal;
+    if (state.mode === "price") {
+      els.lookupHint.textContent = outOfRange
+        ? `超出当前方阵范围（${GannSquare.formatNumber(minVal)}–${GannSquare.formatNumber(maxVal)}），已定位边界最近格 ${cell.display}`
+        : `最接近 ${cell.display}（差值 ${GannSquare.formatNumber(diff)}）`;
+    } else {
+      els.lookupHint.textContent = `最接近序号 ${cell.index} → ${cell.display}`;
+    }
+    showToast(outOfRange ? "已定位到边界最近格" : "已定位");
   }
 
   function writeUrlState(params) {
