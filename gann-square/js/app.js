@@ -521,6 +521,39 @@
       }
     }
 
+    if (state.pathResult && state.pathResult.steps && state.pathResult.steps.length > 1) {
+      const pts = state.pathResult.steps.map((s) => ({
+        x: pad + s.cell.col * (cell + gap) + cell / 2,
+        y: pad + s.cell.row * (cell + gap) + cell / 2,
+        move: s.move,
+      }));
+      for (let i = 0; i < pts.length - 1; i += 1) {
+        const a = pts[i];
+        const b = pts[i + 1];
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = pts[i + 1].move === "180" ? "#1f5f8a" : "#1f6f6a";
+        ctx.lineWidth = 2.5;
+        if (pts[i + 1].move === "180") ctx.setLineDash([8, 5]);
+        else ctx.setLineDash([]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      pts.forEach((p, i) => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, cell * 0.28, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,252,248,0.95)";
+        ctx.fill();
+        ctx.strokeStyle = i === 0 ? "#2f8f4e" : i === pts.length - 1 ? "#b23a2f" : "#b8652f";
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.fillStyle = "#142028";
+        ctx.font = `600 ${Math.max(9, Math.floor(cell * 0.22))}px "IBM Plex Mono", monospace`;
+        ctx.fillText(`#${i}`, p.x, p.y);
+      });
+    }
+
     const a = document.createElement("a");
     a.href = canvas.toDataURL("image/png");
     a.download = `gann-square-${size}x${size}.png`;
