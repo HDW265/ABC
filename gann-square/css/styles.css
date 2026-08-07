@@ -492,6 +492,211 @@ input[type="range"] {
   display: grid;
   place-items: center;
   padding: 1.25rem;
+  position: relative;
+}
+
+.square-stack {
+  position: relative;
+  display: inline-block;
+}
+
+.path-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 4;
+}
+
+.path-overlay .path-line-45 {
+  fill: none;
+  stroke: #1f6f6a;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.path-overlay .path-line-180 {
+  fill: none;
+  stroke: #1f5f8a;
+  stroke-width: 2.6;
+  stroke-dasharray: 8 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.path-overlay .path-arrow {
+  fill: currentColor;
+}
+
+.path-overlay .path-node {
+  fill: rgba(255, 252, 248, 0.92);
+  stroke-width: 2.5;
+}
+
+.path-overlay .path-node.start {
+  stroke: #2f8f4e;
+}
+
+.path-overlay .path-node.mid {
+  stroke: #b8652f;
+}
+
+.path-overlay .path-node.end {
+  stroke: #b23a2f;
+  stroke-width: 3;
+}
+
+.path-overlay .path-node.active {
+  stroke: #0f766e;
+  stroke-width: 3.5;
+  filter: drop-shadow(0 0 4px rgba(15, 118, 110, 0.45));
+}
+
+.path-overlay .path-badge {
+  fill: #142028;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.path-overlay .path-label {
+  fill: #2a3a45;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.path-minibar {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.75rem;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  max-width: calc(100% - 1.5rem);
+  padding: 0.45rem 0.55rem 0.45rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(20, 32, 40, 0.88);
+  color: #f4f7f5;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  box-shadow: 0 8px 24px rgba(20, 32, 40, 0.2);
+}
+
+.path-minibar span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.path-minibar .btn {
+  color: #142028;
+  background: #fff;
+  border-color: transparent;
+  flex-shrink: 0;
+}
+
+.radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  font-size: 0.9rem;
+}
+
+.radio-row label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.compact-checks {
+  grid-template-columns: repeat(3, auto);
+  gap: 0.35rem 0.75rem;
+}
+
+.path-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.path-result {
+  margin-bottom: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.path-result-summary {
+  margin: 0 0 0.65rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.path-table-wrap {
+  overflow: auto;
+  max-height: 220px;
+  margin-bottom: 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.path-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.path-table th,
+.path-table td {
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+
+.path-table th {
+  position: sticky;
+  top: 0;
+  background: rgba(255, 252, 248, 0.96);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.path-table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.path-table tbody tr:hover,
+.path-table tbody tr.active {
+  background: rgba(184, 101, 47, 0.1);
+}
+
+.path-table .mono {
+  font-family: var(--font-mono);
+}
+
+.path-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.hint.snap-on {
+  color: var(--copper-deep);
+  font-weight: 500;
 }
 
 .canvas-scaler {
@@ -692,6 +897,12 @@ input[type="range"] {
 .swatch.cross { background: #d9e8f2; }
 .swatch.diag { background: #f3d4d0; }
 .swatch.ring { background: linear-gradient(90deg, #fff 50%, #f4e4dc 50%); }
+.swatch.path45 {
+  background: linear-gradient(135deg, transparent 45%, #1f6f6a 45%, #1f6f6a 55%, transparent 55%);
+}
+.swatch.path180 {
+  background: repeating-linear-gradient(90deg, #1f5f8a 0 4px, transparent 4px 7px);
+}
 
 .footer {
   padding: 0 1.5rem 1.5rem;

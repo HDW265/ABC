@@ -115,6 +115,49 @@
         <p class="hint" id="lookupHint">定位最接近的格子与邻近关键位</p>
       </section>
 
+      <section class="control-block path-runner" id="pathRunner">
+        <h2>跑图 Path Runner</h2>
+        <label class="field">
+          <span>起点价</span>
+          <input id="pathStart" type="number" inputmode="decimal" step="any" value="922" />
+        </label>
+        <label class="field">
+          <span>目标价</span>
+          <input id="pathTarget" type="number" inputmode="decimal" step="any" value="749" />
+        </label>
+        <p class="hint" id="pathSnapHint">目标将沿 45°/180° 路径落到最近结构点</p>
+        <div class="field">
+          <span>方向</span>
+          <div class="radio-row">
+            <label><input type="radio" name="pathDir" value="down" checked /> 向下寻目标</label>
+            <label><input type="radio" name="pathDir" value="up" /> 向上</label>
+          </div>
+        </div>
+        <label class="field">
+          <span>规则</span>
+          <select id="pathRule" disabled>
+            <option value="45-180">45° → 180° → 循环</option>
+          </select>
+        </label>
+        <div class="field">
+          <span>标注</span>
+          <div class="checks compact-checks">
+            <label><input type="checkbox" id="pathLabelIndex" checked /> 序号</label>
+            <label><input type="checkbox" id="pathLabelPrice" /> 价位</label>
+            <label><input type="checkbox" id="pathLabelMove" /> 步型</label>
+          </div>
+        </div>
+        <div class="checks">
+          <label><input type="checkbox" id="pathAutoExpand" checked /> 自动扩环以覆盖路径</label>
+          <label><input type="checkbox" id="pathCollapsePanels" checked /> 跑图时收起侧栏</label>
+        </div>
+        <div class="path-actions">
+          <button type="button" class="btn primary" id="btnPathRun">开始跑图</button>
+          <button type="button" class="btn ghost" id="btnPathClear">清除路径</button>
+        </div>
+        <p class="hint" id="pathSummary">尚未跑图</p>
+      </section>
+
       <details class="advanced">
         <summary>高级 · 中心偏移 / 环数上限</summary>
         <div class="advanced-body">
@@ -157,7 +200,14 @@
       </div>
       <div class="canvas-wrap" id="canvasWrap">
         <div class="canvas-scaler" id="canvasScaler">
-          <div class="square" id="square" role="grid" aria-label="江恩九方图网格"></div>
+          <div class="square-stack" id="squareStack">
+            <div class="square" id="square" role="grid" aria-label="江恩九方图网格"></div>
+            <svg class="path-overlay" id="pathOverlay" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
+          </div>
+        </div>
+        <div class="path-minibar hidden" id="pathMinibar" aria-live="polite">
+          <span id="pathMinibarText">—</span>
+          <button type="button" class="btn ghost compact" id="btnPathExpandPanels">展开侧栏</button>
         </div>
       </div>
       <p class="toast" id="toast" role="status" aria-live="polite"></p>
@@ -169,6 +219,28 @@
         <button type="button" class="panel-toggle" id="toggleRight" aria-label="收起解读面板" title="收起解读面板">›</button>
       </div>
       <div class="panel-body" id="panelRightBody">
+      <section class="path-result hidden" id="pathResult">
+        <h2>路径结果</h2>
+        <p class="path-result-summary" id="pathResultSummary">—</p>
+        <div class="path-table-wrap">
+          <table class="path-table" id="pathTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>价位</th>
+                <th>步型</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="pathTableBody"></tbody>
+          </table>
+        </div>
+        <div class="path-result-actions">
+          <button type="button" class="btn ghost compact" id="btnPathCopy">复制路径</button>
+          <button type="button" class="btn ghost compact" id="btnPathExport">导出路径 CSV</button>
+        </div>
+      </section>
+
       <h2>选中解读</h2>
       <div id="emptyReadout" class="empty-readout">
         点击格子查看角度、环数与关联价位。
@@ -194,6 +266,8 @@
           <li><span class="swatch cross"></span>十字轴 0°/90°</li>
           <li><span class="swatch diag"></span>对角 45°/135°</li>
           <li><span class="swatch ring"></span>环层底色交替</li>
+          <li><span class="swatch path45"></span>跑图 45° 实线</li>
+          <li><span class="swatch path180"></span>跑图 180° 虚线</li>
         </ul>
       </div>
       </div>
@@ -205,6 +279,7 @@
   </footer>
 
   <script src="./js/square.js"></script>
+  <script src="./js/path.js"></script>
   <script src="./js/app.js"></script>
 </body>
 </html>

@@ -52,6 +52,27 @@
     btnZoomOut: $("btnZoomOut"),
     btnZoomReset: $("btnZoomReset"),
     stepChips: $("stepChips"),
+    pathStart: $("pathStart"),
+    pathTarget: $("pathTarget"),
+    pathSnapHint: $("pathSnapHint"),
+    pathLabelIndex: $("pathLabelIndex"),
+    pathLabelPrice: $("pathLabelPrice"),
+    pathLabelMove: $("pathLabelMove"),
+    pathAutoExpand: $("pathAutoExpand"),
+    pathCollapsePanels: $("pathCollapsePanels"),
+    btnPathRun: $("btnPathRun"),
+    btnPathClear: $("btnPathClear"),
+    pathSummary: $("pathSummary"),
+    pathOverlay: $("pathOverlay"),
+    squareStack: $("squareStack"),
+    pathMinibar: $("pathMinibar"),
+    pathMinibarText: $("pathMinibarText"),
+    btnPathExpandPanels: $("btnPathExpandPanels"),
+    pathResult: $("pathResult"),
+    pathResultSummary: $("pathResultSummary"),
+    pathTableBody: $("pathTableBody"),
+    btnPathCopy: $("btnPathCopy"),
+    btnPathExport: $("btnPathExport"),
   };
 
   const STORAGE_KEY = "gann-square-ui-v1";
@@ -66,6 +87,9 @@
     ringsMax: 50,
     leftCollapsed: false,
     rightCollapsed: false,
+    pathResult: null,
+    pathActiveStep: null,
+    pathDrawTimer: null,
   };
 
   function loadPrefs() {
@@ -133,6 +157,10 @@
       els.toggleRight.title = collapsed ? "展开解读面板" : "收起解读面板";
     }
     savePrefs();
+    if (state.pathResult) {
+      const anyCollapsed = state.leftCollapsed || state.rightCollapsed;
+      els.pathMinibar.classList.toggle("hidden", !anyCollapsed);
+    }
   }
 
   function togglePanel(side) {
@@ -301,6 +329,11 @@
         updateReadout(square.meta[sr][sc]);
       }
     }
+
+    requestAnimationFrame(() => {
+      if (state.pathResult) drawPathOverlay(state.pathResult);
+      else clearPathOverlay();
+    });
   }
 
   function selectCell(cell) {
@@ -495,6 +528,346 @@
     showToast("PNG 已导出");
   }
 
+  function pathDirection() {
+    const checked = document.querySelector('input[name="pathDir"]:checked');
+    return checked ? checked.value : "down";
+  }
+
+  function updateSnapHint() {
+    if (!state.square || state.mode !== "price") {
+      els.pathSnapHint.textContent = "目标将沿 45°/180° 路径落到最近结构点";
+      els.pathSnapHint.classList.remove("snap-on");
+      return;
+    }
+    const start = Number(els.pathStart.value);
+    const raw = Number(els.pathTarget.value);
+    if (!Number.isFinite(raw) || !Number.isFinite(start)) {
+      els.pathSnapHint.textContent = "请输入起点与目标价";
+      els.pathSnapHint.classList.remove("snap-on");
+      return;
+    }
+    const preview = GannPath.runPath(state.square, {
+      start,
+      target: raw,
+      direction: pathDirection(),
+    });
+    if (!preview.ok || !preview.steps.length) {
+      els.pathSnapHint.textContent = preview.message || "无法预览路径";
+      els.pathSnapHint.classList.remove("snap-on");
+      return;
+    }
+    const end = preview.steps[preview.steps.length - 1].price;
+    const diff = Math.abs(end - raw);
+    if (diff < 0.5) {
+      els.pathSnapHint.textContent = `预计落点 ${GannSquare.formatNumber(end)}`;
+      els.pathSnapHint.classList.remove("snap-on");
+    } else {
+      els.pathSnapHint.textContent = `输入 ${GannSquare.formatNumber(raw)} → 预计落点 ${GannSquare.formatNumber(end)}（差值 ${GannSquare.formatNumber(diff)}）`;
+      els.pathSnapHint.classList.add("snap-on");
+    }
+  }
+
+  function ensureRingsForPath(start, target) {
+    const begin = Number(els.begin.value) || 1;
+    const step = Number(els.step.value) || 1;
+    const need =
+      Math.max(
+        GannPath.minRingsForValue(begin, step, start),
+        GannPath.minRingsForValue(begin, step, target)
+      ) + 1;
+    const desired = Math.min(state.ringsMax, Math.max(3, need));
+    if (desired > clampRings(els.rings.value)) {
+      syncRingsControls(desired);
+      return true;
+    }
+    return false;
+  }
+
+  function resolvePathCells(result) {
+    if (!result || !state.square) return result;
+    const steps = result.steps.map((s) => {
+      const cell = state.square.meta[s.cell.row] && state.square.meta[s.cell.row][s.cell.col];
+      return cell ? { ...s, cell, price: cell.mode === "time" ? cell.index : cell.value } : s;
+    });
+    return { ...result, steps };
+  }
+
+  function clearPathOverlay() {
+    if (els.pathOverlay) els.pathOverlay.innerHTML = "";
+  }
+
+  function cellCenter(row, col) {
+    const el = els.square.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+    if (!el || !els.squareStack) return null;
+    const x = el.offsetLeft + el.offsetWidth / 2;
+    const y = el.offsetTop + el.offsetHeight / 2;
+    return {
+      x: els.square.offsetLeft + x,
+      y: els.square.offsetTop + y,
+      r: Math.max(8, Math.min(el.offsetWidth, el.offsetHeight) * 0.38),
+    };
+  }
+
+  function moveLabel(move) {
+    if (move === "start") return "起点";
+    if (move === "45") return "45°";
+    if (move === "180") return "180°";
+    return move;
+  }
+
+  function drawPathOverlay(result, revealUntil) {
+    clearPathOverlay();
+    if (!result || !result.steps || result.steps.length < 1 || !els.pathOverlay) return;
+
+    const resolved = resolvePathCells(result);
+    const steps = resolved.steps;
+    const limit = Number.isFinite(revealUntil) ? revealUntil : steps.length - 1;
+    const showIndex = els.pathLabelIndex.checked;
+    const showPrice = els.pathLabelPrice.checked;
+    const showMove = els.pathLabelMove.checked;
+    const rings = clampRings(els.rings.value);
+    const forceIndexOnly = rings >= 19;
+    const allowPrice = showPrice && !forceIndexOnly;
+    const allowMove = showMove && rings <= 10;
+
+    const width = els.squareStack.offsetWidth;
+    const height = els.squareStack.offsetHeight;
+    els.pathOverlay.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    els.pathOverlay.setAttribute("width", String(width));
+    els.pathOverlay.setAttribute("height", String(height));
+
+    const centers = steps.map((s) => cellCenter(s.cell.row, s.cell.col));
+    const ns = "http://www.w3.org/2000/svg";
+
+    for (let i = 0; i < steps.length - 1; i += 1) {
+      if (i + 1 > limit) break;
+      const a = centers[i];
+      const b = centers[i + 1];
+      if (!a || !b) continue;
+      const line = document.createElementNS(ns, "line");
+      line.setAttribute("x1", a.x);
+      line.setAttribute("y1", a.y);
+      line.setAttribute("x2", b.x);
+      line.setAttribute("y2", b.y);
+      const move = steps[i + 1].move;
+      line.setAttribute("class", move === "180" ? "path-line-180" : "path-line-45");
+      els.pathOverlay.appendChild(line);
+
+      const angle = Math.atan2(b.y - a.y, b.x - a.x);
+      const ah = 7;
+      const ax = b.x - Math.cos(angle) * (b.r + 2);
+      const ay = b.y - Math.sin(angle) * (b.r + 2);
+      const arrow = document.createElementNS(ns, "polygon");
+      const p1 = `${ax},${ay}`;
+      const p2 = `${ax - ah * Math.cos(angle - 0.4)},${ay - ah * Math.sin(angle - 0.4)}`;
+      const p3 = `${ax - ah * Math.cos(angle + 0.4)},${ay - ah * Math.sin(angle + 0.4)}`;
+      arrow.setAttribute("points", `${p1} ${p2} ${p3}`);
+      arrow.setAttribute("class", "path-arrow");
+      arrow.style.color = move === "180" ? "#1f5f8a" : "#1f6f6a";
+      els.pathOverlay.appendChild(arrow);
+    }
+
+    for (let i = 0; i <= Math.min(limit, steps.length - 1); i += 1) {
+      const s = steps[i];
+      const p = centers[i];
+      if (!p) continue;
+      const isStart = i === 0;
+      const isEnd = i === steps.length - 1 && resolved.reached;
+      const circle = document.createElementNS(ns, "circle");
+      circle.setAttribute("cx", p.x);
+      circle.setAttribute("cy", p.y);
+      circle.setAttribute("r", p.r);
+      let cls = "path-node mid";
+      if (isStart) cls = "path-node start";
+      if (isEnd) cls = "path-node end";
+      if (state.pathActiveStep === i) cls += " active";
+      circle.setAttribute("class", cls);
+      els.pathOverlay.appendChild(circle);
+
+      if (showIndex) {
+        const badge = document.createElementNS(ns, "text");
+        badge.setAttribute("x", p.x);
+        badge.setAttribute("y", p.y);
+        badge.setAttribute("class", "path-badge");
+        badge.textContent = `#${i}`;
+        els.pathOverlay.appendChild(badge);
+      }
+
+      const labels = [];
+      if (allowPrice) labels.push(GannSquare.formatNumber(s.price));
+      if (allowMove && !isStart) labels.push(moveLabel(s.move));
+      if (isEnd) labels.push("目标✓");
+      if (labels.length) {
+        const lab = document.createElementNS(ns, "text");
+        lab.setAttribute("x", p.x);
+        lab.setAttribute("y", p.y + p.r + 11);
+        lab.setAttribute("class", "path-label");
+        lab.textContent = labels.join(" · ");
+        els.pathOverlay.appendChild(lab);
+      }
+    }
+  }
+
+  function updatePathTable(result) {
+    if (!result || !result.ok) {
+      els.pathResult.classList.add("hidden");
+      els.pathMinibar.classList.add("hidden");
+      els.pathSummary.textContent = "尚未跑图";
+      return;
+    }
+
+    els.pathResult.classList.remove("hidden");
+    const prices = result.steps.map((s) => GannSquare.formatNumber(s.price)).join(" → ");
+    const snapNote = result.snapped
+      ? `（输入 ${GannSquare.formatNumber(result.targetRaw)} → 落点 ${GannSquare.formatNumber(result.targetPrice)}）`
+      : "";
+    els.pathResultSummary.textContent = `${prices} · ${result.reached ? "已到达" : "未到达"} · ${result.steps.length - 1} 步${snapNote}`;
+    els.pathSummary.textContent = result.message;
+
+    els.pathTableBody.innerHTML = "";
+    result.steps.forEach((s, i) => {
+      const tr = document.createElement("tr");
+      if (state.pathActiveStep === i) tr.classList.add("active");
+      tr.innerHTML = `
+        <td class="mono">${i}</td>
+        <td class="mono">${GannSquare.formatNumber(s.price)}</td>
+        <td>${moveLabel(s.move)}</td>
+        <td><button type="button" class="btn ghost compact" data-focus="${i}">定位</button></td>
+      `;
+      tr.addEventListener("click", (e) => {
+        if (e.target.closest("button")) return;
+        focusPathStep(i);
+      });
+      tr.querySelector("button").addEventListener("click", (e) => {
+        e.stopPropagation();
+        focusPathStep(i);
+      });
+      els.pathTableBody.appendChild(tr);
+    });
+
+    const mini = result.steps.map((s) => GannSquare.formatNumber(s.price)).join(" → ");
+    els.pathMinibarText.textContent = `${mini}${result.reached ? " ✓" : ""}`;
+    const collapsed = state.leftCollapsed || state.rightCollapsed;
+    els.pathMinibar.classList.toggle("hidden", !collapsed || !result.ok);
+  }
+
+  function focusPathStep(index) {
+    if (!state.pathResult) return;
+    state.pathActiveStep = index;
+    const step = state.pathResult.steps[index];
+    if (step) {
+      selectCell(step.cell);
+      const el = els.square.querySelector(`[data-row="${step.cell.row}"][data-col="${step.cell.col}"]`);
+      if (el) el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+    }
+    drawPathOverlay(state.pathResult);
+    updatePathTable(state.pathResult);
+  }
+
+  function animatePath(result) {
+    clearTimeout(state.pathDrawTimer);
+    let i = 0;
+    const tick = () => {
+      drawPathOverlay(result, i);
+      if (i < result.steps.length - 1) {
+        i += 1;
+        state.pathDrawTimer = setTimeout(tick, 180);
+      } else {
+        drawPathOverlay(result);
+      }
+    };
+    tick();
+  }
+
+  function runPathFlow() {
+    if (state.mode !== "price") {
+      showToast("请先切换到价格模式");
+      return;
+    }
+    const start = Number(els.pathStart.value);
+    const target = Number(els.pathTarget.value);
+    if (!Number.isFinite(start) || !Number.isFinite(target)) {
+      showToast("请输入有效起点与目标");
+      return;
+    }
+
+    if (els.pathAutoExpand.checked) {
+      if (ensureRingsForPath(start, target)) render();
+    }
+
+    updateSnapHint();
+
+    const result = GannPath.runPath(state.square, {
+      start,
+      target,
+      direction: pathDirection(),
+    });
+
+    if (!result.ok) {
+      showToast(result.message || "跑图失败");
+      return;
+    }
+
+    state.pathResult = result;
+    state.pathActiveStep = null;
+
+    if (els.pathCollapsePanels.checked) {
+      setPanelCollapsed("left", true);
+      setPanelCollapsed("right", true);
+    }
+
+    els.hlCross.checked = true;
+    els.hlDiag.checked = true;
+
+    updatePathTable(result);
+    animatePath(result);
+    showToast(result.reached ? "跑图完成" : "跑图结束（未完全到达）");
+
+    const first = result.steps[0];
+    if (first) {
+      const el = els.square.querySelector(`[data-row="${first.cell.row}"][data-col="${first.cell.col}"]`);
+      if (el) el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+    }
+  }
+
+  function clearPath() {
+    clearTimeout(state.pathDrawTimer);
+    state.pathResult = null;
+    state.pathActiveStep = null;
+    clearPathOverlay();
+    updatePathTable(null);
+    els.pathMinibar.classList.add("hidden");
+    showToast("已清除路径");
+  }
+
+  async function copyPath() {
+    if (!state.pathResult) return;
+    const text = state.pathResult.steps.map((s) => GannSquare.formatNumber(s.price)).join(" → ");
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast("路径已复制");
+    } catch (err) {
+      showToast("复制失败");
+    }
+  }
+
+  function exportPathCsv() {
+    if (!state.pathResult) return;
+    const lines = ["step,price,move,row,col,ring,transform"];
+    state.pathResult.steps.forEach((s) => {
+      lines.push(
+        [s.step, s.price, s.move, s.cell.row, s.cell.col, s.cell.ring, s.transform || ""].join(",")
+      );
+    });
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "gann-path.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast("路径 CSV 已导出");
+  }
+
   function resetAll() {
     applyParams({
       mode: "price",
@@ -517,6 +890,14 @@
     els.emptyReadout.classList.remove("hidden");
     els.readoutBody.classList.add("hidden");
     els.lookupHint.textContent = "定位最接近的格子与邻近关键位";
+    els.pathStart.value = "922";
+    els.pathTarget.value = "749";
+    clearTimeout(state.pathDrawTimer);
+    state.pathResult = null;
+    state.pathActiveStep = null;
+    clearPathOverlay();
+    updatePathTable(null);
+    els.pathMinibar.classList.add("hidden");
     scheduleRender();
   }
 
@@ -550,10 +931,22 @@
       scheduleRender();
     });
 
-    els.toggleLeft.addEventListener("click", () => togglePanel("left"));
-    els.toggleRight.addEventListener("click", () => togglePanel("right"));
-    els.reopenLeft.addEventListener("click", () => setPanelCollapsed("left", false));
-    els.reopenRight.addEventListener("click", () => setPanelCollapsed("right", false));
+    els.toggleLeft.addEventListener("click", () => {
+      togglePanel("left");
+      if (state.pathResult) updatePathTable(state.pathResult);
+    });
+    els.toggleRight.addEventListener("click", () => {
+      togglePanel("right");
+      if (state.pathResult) updatePathTable(state.pathResult);
+    });
+    els.reopenLeft.addEventListener("click", () => {
+      setPanelCollapsed("left", false);
+      if (state.pathResult) updatePathTable(state.pathResult);
+    });
+    els.reopenRight.addEventListener("click", () => {
+      setPanelCollapsed("right", false);
+      if (state.pathResult) updatePathTable(state.pathResult);
+    });
 
     ["hlCross", "hlDiag", "hlSquares"].forEach((id) => {
       els[id].addEventListener("change", scheduleRender);
@@ -589,6 +982,31 @@
       state.zoom = 1;
       scheduleRender();
     });
+
+    els.btnPathRun.addEventListener("click", runPathFlow);
+    els.btnPathClear.addEventListener("click", clearPath);
+    els.btnPathCopy.addEventListener("click", copyPath);
+    els.btnPathExport.addEventListener("click", exportPathCsv);
+    els.btnPathExpandPanels.addEventListener("click", () => {
+      setPanelCollapsed("left", false);
+      setPanelCollapsed("right", false);
+      if (state.pathResult) updatePathTable(state.pathResult);
+    });
+    els.pathTarget.addEventListener("input", updateSnapHint);
+    els.pathTarget.addEventListener("change", updateSnapHint);
+    els.pathStart.addEventListener("input", updateSnapHint);
+    els.pathStart.addEventListener("change", updateSnapHint);
+    document.querySelectorAll('input[name="pathDir"]').forEach((el) => {
+      el.addEventListener("change", updateSnapHint);
+    });
+    ["pathLabelIndex", "pathLabelPrice", "pathLabelMove"].forEach((id) => {
+      els[id].addEventListener("change", () => {
+        if (state.pathResult) drawPathOverlay(state.pathResult);
+      });
+    });
+    window.addEventListener("resize", () => {
+      if (state.pathResult) drawPathOverlay(state.pathResult);
+    });
   }
 
   function init() {
@@ -601,6 +1019,7 @@
     const fromUrl = loadUrlState();
     if (!fromUrl) applyParams({ mode: "price", begin: 1, step: 1, rings: 6 });
     render();
+    updateSnapHint();
   }
 
   init();
