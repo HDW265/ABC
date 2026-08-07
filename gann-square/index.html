@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>江恩九方图 · Square of Nine</title>
+  <meta name="description" content="网页版江恩九方图：步长、环数、价格反查、角度高亮与导出。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand-block">
+      <p class="brand">江恩九方图</p>
+      <p class="brand-sub">Square of Nine · 价格与时间几何</p>
+    </div>
+    <div class="top-actions">
+      <label class="field inline preset-field">
+        <span>预设</span>
+        <select id="preset" aria-label="预设模板">
+          <option value="classic">经典 1 / 1</option>
+          <option value="price01">股价步长 0.1</option>
+          <option value="price1">股价步长 1</option>
+          <option value="index">指数步长 10</option>
+          <option value="timeDay">时间·按日</option>
+        </select>
+      </label>
+      <button type="button" class="btn ghost" id="btnCopyLink">复制链接</button>
+      <button type="button" class="btn ghost" id="btnExportCsv">导出 CSV</button>
+      <button type="button" class="btn primary" id="btnExportPng">导出 PNG</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel controls" aria-label="参数面板">
+      <div class="mode-tabs" role="tablist" aria-label="模式切换">
+        <button type="button" class="tab active" role="tab" aria-selected="true" data-mode="price">价格</button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-mode="time">时间</button>
+      </div>
+
+      <section class="control-block" id="priceControls">
+        <h2>价格参数</h2>
+        <label class="field">
+          <span>起始值 Begin</span>
+          <input id="begin" type="number" inputmode="decimal" value="1" step="any" />
+        </label>
+        <label class="field">
+          <span>步长 Step</span>
+          <div class="step-row">
+            <input id="step" type="number" inputmode="decimal" value="1" step="any" min="0" />
+            <div class="chip-row" id="stepChips">
+              <button type="button" data-step="0.01">0.01</button>
+              <button type="button" data-step="0.1">0.1</button>
+              <button type="button" data-step="1" class="on">1</button>
+              <button type="button" data-step="5">5</button>
+              <button type="button" data-step="10">10</button>
+            </div>
+          </div>
+        </label>
+      </section>
+
+      <section class="control-block hidden" id="timeControls">
+        <h2>时间参数</h2>
+        <label class="field">
+          <span>起始日期</span>
+          <input id="beginDate" type="date" />
+        </label>
+        <label class="field">
+          <span>时间步长</span>
+          <select id="timeStepUnit">
+            <option value="day" selected>1 日</option>
+            <option value="week">1 周</option>
+            <option value="month">1 月</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="control-block">
+        <h2>结构</h2>
+        <label class="field">
+          <span>环数 Rings <em id="ringsLabel">6</em></span>
+          <input id="rings" type="range" min="3" max="15" value="6" />
+        </label>
+        <p class="hint" id="sizeHint">边长 11 × 11 · 共 121 格</p>
+      </section>
+
+      <section class="control-block">
+        <h2>显示</h2>
+        <div class="checks">
+          <label><input type="checkbox" id="hlCross" checked /> 十字轴</label>
+          <label><input type="checkbox" id="hlDiag" checked /> 对角线</label>
+          <label><input type="checkbox" id="hlSquares" /> 完全平方数</label>
+        </div>
+      </section>
+
+      <section class="control-block">
+        <h2>价格反查</h2>
+        <div class="lookup-row">
+          <input id="lookupValue" type="number" inputmode="decimal" step="any" placeholder="输入价格" />
+          <button type="button" class="btn primary compact" id="btnLookup">定位</button>
+        </div>
+        <p class="hint" id="lookupHint">定位最接近的格子与邻近关键位</p>
+      </section>
+
+      <details class="advanced">
+        <summary>高级 · 中心偏移</summary>
+        <div class="advanced-body">
+          <label class="field">
+            <span>行偏移</span>
+            <input id="rowOffset" type="number" value="0" step="1" />
+          </label>
+          <label class="field">
+            <span>列偏移</span>
+            <input id="colOffset" type="number" value="0" step="1" />
+          </label>
+          <p class="hint">默认锁定几何中心；偏移仅供实验对照。</p>
+        </div>
+      </details>
+
+      <div class="control-footer">
+        <button type="button" class="btn ghost" id="btnReset">重置</button>
+      </div>
+    </aside>
+
+    <section class="stage" aria-label="九方图画布">
+      <div class="stage-toolbar">
+        <p class="stage-title" id="stageTitle">价格方阵</p>
+        <div class="zoom-controls">
+          <button type="button" class="btn ghost compact" id="btnZoomOut" aria-label="缩小">−</button>
+          <span id="zoomLabel">100%</span>
+          <button type="button" class="btn ghost compact" id="btnZoomIn" aria-label="放大">+</button>
+          <button type="button" class="btn ghost compact" id="btnZoomReset">复位</button>
+        </div>
+      </div>
+      <div class="canvas-wrap" id="canvasWrap">
+        <div class="canvas-scaler" id="canvasScaler">
+          <div class="square" id="square" role="grid" aria-label="江恩九方图网格"></div>
+        </div>
+      </div>
+      <p class="toast" id="toast" role="status" aria-live="polite"></p>
+    </section>
+
+    <aside class="panel readout" aria-label="解读面板">
+      <h2>选中解读</h2>
+      <div id="emptyReadout" class="empty-readout">
+        点击格子查看角度、环数与关联价位。
+      </div>
+      <div id="readoutBody" class="readout-body hidden">
+        <p class="readout-value" id="readoutValue">—</p>
+        <dl class="meta">
+          <div><dt>角度</dt><dd id="readoutAngle">—</dd></div>
+          <div><dt>环数</dt><dd id="readoutRing">—</dd></div>
+          <div><dt>坐标</dt><dd id="readoutCoord">—</dd></div>
+          <div><dt>序号</dt><dd id="readoutIndex">—</dd></div>
+        </dl>
+        <h3>同角度关联位</h3>
+        <ul class="level-list" id="relatedList"></ul>
+        <h3>邻近关键位</h3>
+        <ul class="level-list" id="neighborList"></ul>
+      </div>
+
+      <div class="legend">
+        <h3>图例</h3>
+        <ul>
+          <li><span class="swatch center"></span>中心</li>
+          <li><span class="swatch cross"></span>十字轴 0°/90°</li>
+          <li><span class="swatch diag"></span>对角 45°/135°</li>
+          <li><span class="swatch ring"></span>环层底色交替</li>
+        </ul>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="footer">
+    <p>纯静态网页 · 打开本文件或用任意静态服务器即可运行，无需安装依赖。</p>
+  </footer>
+
+  <script src="./js/square.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>
