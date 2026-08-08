@@ -575,23 +575,20 @@
     const start = Number(els.pathStart.value);
     const target = Number(els.pathTarget.value);
     const radios = document.querySelectorAll('input[name="pathDir"]');
+    radios.forEach((el) => {
+      el.disabled = true;
+    });
     if (!Number.isFinite(start) || !Number.isFinite(target)) {
-      radios.forEach((el) => {
-        el.disabled = false;
-      });
+      if (els.btnPathRun) els.btnPathRun.disabled = true;
       return { ok: false, same: false, direction: pathDirection() };
     }
     const same = Math.abs(start - target) <= pathPriceEps();
     if (same) {
-      radios.forEach((el) => {
-        el.disabled = true;
-      });
       if (els.btnPathRun) els.btnPathRun.disabled = true;
       return { ok: false, same: true, direction: pathDirection() };
     }
     const direction = start > target ? "down" : "up";
     radios.forEach((el) => {
-      el.disabled = true;
       el.checked = el.value === direction;
     });
     if (els.btnPathRun) els.btnPathRun.disabled = false;
