@@ -284,6 +284,7 @@ python3 -m http.server 8080
 
 7. **Constellate（星座）跑图**  
    - 填起点价 / 目标价 →「开始跑图」  
+   - 方向由高低点自动判定（高→低向下，低→高向上；相同则提示调整）  
    - 算法：**Constellate（星座）跑图法** — `45° → 180° → 循环`，含主轴 180° 与连续边换角  
    - **算法定稿归档：** [PATH_ALGORITHM.md](./PATH_ALGORITHM.md)
 

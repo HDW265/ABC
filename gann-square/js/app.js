@@ -565,9 +565,42 @@
     return checked ? checked.value : "down";
   }
 
+  function pathPriceEps() {
+    const step = state.square ? Math.abs(state.square.step || 1) : Math.abs(Number(els.step.value) || 1);
+    return Math.max(step * 0.5, 0.5);
+  }
+
+  /** Auto direction from high/low; equal prices → no direction (prompt user). */
+  function syncPathDirectionFromPrices() {
+    const start = Number(els.pathStart.value);
+    const target = Number(els.pathTarget.value);
+    const radios = document.querySelectorAll('input[name="pathDir"]');
+    if (!Number.isFinite(start) || !Number.isFinite(target)) {
+      radios.forEach((el) => {
+        el.disabled = false;
+      });
+      return { ok: false, same: false, direction: pathDirection() };
+    }
+    const same = Math.abs(start - target) <= pathPriceEps();
+    if (same) {
+      radios.forEach((el) => {
+        el.disabled = true;
+      });
+      if (els.btnPathRun) els.btnPathRun.disabled = true;
+      return { ok: false, same: true, direction: pathDirection() };
+    }
+    const direction = start > target ? "down" : "up";
+    radios.forEach((el) => {
+      el.disabled = true;
+      el.checked = el.value === direction;
+    });
+    if (els.btnPathRun) els.btnPathRun.disabled = false;
+    return { ok: true, same: false, direction };
+  }
+
   function updateSnapHint() {
     if (!state.square || state.mode !== "price") {
-      els.pathSnapHint.textContent = "目标将沿 45°/180° 路径落到最近结构点";
+      els.pathSnapHint.textContent = "Constellate：目标沿 45°/180° 星线落到最近结构点";
       els.pathSnapHint.classList.remove("snap-on");
       return;
     }
@@ -576,12 +609,19 @@
     if (!Number.isFinite(raw) || !Number.isFinite(start)) {
       els.pathSnapHint.textContent = "请输入起点与目标价";
       els.pathSnapHint.classList.remove("snap-on");
+      if (els.btnPathRun) els.btnPathRun.disabled = true;
+      return;
+    }
+    const sync = syncPathDirectionFromPrices();
+    if (sync.same) {
+      els.pathSnapHint.textContent = "起点与目标相同，无法判定方向，请调整高低点";
+      els.pathSnapHint.classList.add("snap-on");
       return;
     }
     const preview = GannPath.runPath(state.square, {
       start,
       target: raw,
-      direction: pathDirection(),
+      direction: sync.direction,
     });
     if (!preview.ok || !preview.steps.length) {
       els.pathSnapHint.textContent = preview.message || "无法预览路径";
@@ -590,11 +630,12 @@
     }
     const end = preview.steps[preview.steps.length - 1].price;
     const diff = Math.abs(end - raw);
+    const dirLabel = sync.direction === "up" ? "向上" : "向下";
     if (diff < 0.5) {
-      els.pathSnapHint.textContent = `预计落点 ${GannSquare.formatNumber(end)}`;
+      els.pathSnapHint.textContent = `${dirLabel} · 预计落点 ${GannSquare.formatNumber(end)}`;
       els.pathSnapHint.classList.remove("snap-on");
     } else {
-      els.pathSnapHint.textContent = `输入 ${GannSquare.formatNumber(raw)} → 预计落点 ${GannSquare.formatNumber(end)}（差值 ${GannSquare.formatNumber(diff)}）`;
+      els.pathSnapHint.textContent = `${dirLabel} · 输入 ${GannSquare.formatNumber(raw)} → 预计落点 ${GannSquare.formatNumber(end)}（差值 ${GannSquare.formatNumber(diff)}）`;
       els.pathSnapHint.classList.add("snap-on");
     }
   }
@@ -820,6 +861,13 @@
       return;
     }
 
+    const sync = syncPathDirectionFromPrices();
+    if (sync.same) {
+      updateSnapHint();
+      showToast("起点与目标相同，无法判定方向，请调整高低点");
+      return;
+    }
+
     if (els.pathAutoExpand.checked) {
       if (ensureRingsForPath(start, target)) render();
     }
@@ -829,7 +877,7 @@
     const result = GannPath.runPath(state.square, {
       start,
       target,
-      direction: pathDirection(),
+      direction: sync.direction,
     });
 
     if (!result.ok) {
