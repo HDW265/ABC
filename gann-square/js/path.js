@@ -17,6 +17,9 @@
  *   other angle instead; the cycle continues from the angle actually
  *   used (scheme B). Example: 241 would 180° along 240,239… → bounce
  *   to 45° → 211.
+ * - Closest-stop: do not take a next step that is farther from the
+ *   target than the current cell (up and down). E.g. 687→775 up stops
+ *   at 768, not 802.
  *
  * Canonical chain (begin=1, step=1, down):
  * 922 → 880 → 833 → 793 → 749 → 711 → 669 → 633 → 594 → 560 → 523 → …
@@ -31,10 +34,12 @@
     return direction === "down" ? b < a : b > a;
   }
 
-  function reached(value, target, direction, eps) {
-    if (Math.abs(value - target) <= eps) return true;
-    if (direction === "down") return value <= target;
-    return value >= target;
+  function withinEps(value, target, eps) {
+    return Math.abs(value - target) <= eps;
+  }
+
+  function distToTarget(value, target) {
+    return Math.abs(value - target);
   }
 
   function rel(cell, square) {
@@ -321,7 +326,7 @@
 
     let current = startCell;
     let moveKind = "45";
-    let reachedFlag = reached(priceOf(current), targetPrice, dir, eps);
+    let reachedFlag = withinEps(priceOf(current), targetPrice, eps);
 
     for (let i = 0; i < MAX_STEPS && !reachedFlag; i += 1) {
       const resolved = resolveMoveKind(square, current, moveKind, dir);
@@ -331,6 +336,14 @@
       if (!picked) break;
 
       if (steps.some((s) => s.cell.row === picked.cell.row && s.cell.col === picked.cell.col)) {
+        break;
+      }
+
+      const curPrice = priceOf(current);
+      const nextPrice = picked.price;
+      // Closest-stop: reject a step that does not get strictly closer
+      if (distToTarget(nextPrice, targetPrice) >= distToTarget(curPrice, targetPrice)) {
+        reachedFlag = true;
         break;
       }
 
@@ -347,7 +360,7 @@
         plannedMove: moveKind,
       });
 
-      reachedFlag = reached(priceOf(current), targetPrice, dir, eps);
+      reachedFlag = withinEps(priceOf(current), targetPrice, eps);
       // Scheme B: continue cycle from the angle actually used
       moveKind = usedKind === "45" ? "180" : "45";
     }
