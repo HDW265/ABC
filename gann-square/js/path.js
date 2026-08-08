@@ -5,8 +5,10 @@
  * - 45°: among cells on 45° diagonal rays from the current cell,
  *   take the nearest price toward the target (scan n-1, n-2… until a
  *   diagonal hit — e.g. 594 → 560).
- * - 180°: among cells on the same row/column on the opposite side of
- *   center, take the nearest price toward the target (e.g. 560 → 523).
+ * - 180°: geometric opposition along the dominant axis —
+ *   |dr|≥|dc| → same column (N–S); |dc|>|dr| → same row (E–W) —
+ *   on the opposite side of center, nearest price toward target
+ *   (e.g. 560 → 523; axis case 916 → 886 → 827).
  *
  * Canonical chain (begin=1, step=1, down):
  * 922 → 880 → 833 → 793 → 749 → 711 → 669 → 633 → 594 → 560 → 523 → …
@@ -71,11 +73,16 @@
   }
 
   /**
-   * 180° candidates: same row or column, opposite side of center.
+   * 180° candidates: opposition along the dominant axis only.
+   * Prefer N–S (same column) when |dr| ≥ |dc|, else E–W (same row).
+   * This avoids axis points (e.g. 886 on north) treating the whole
+   * row as opposite and picking an adjacent cell (885) instead of
+   * the true vertical flip (827).
    */
   function candidates180(square, cell, direction) {
     const { dr: dr0, dc: dc0 } = rel(cell, square);
     const currentPrice = priceOf(cell);
+    const preferCol = Math.abs(dr0) >= Math.abs(dc0);
     const out = [];
 
     for (let r = 0; r < square.size; r += 1) {
@@ -84,7 +91,11 @@
         if (!next || next.index === cell.index) continue;
         const sameCol = c === cell.col;
         const sameRow = r === cell.row;
-        if (!sameCol && !sameRow) continue;
+        if (preferCol) {
+          if (!sameCol) continue;
+        } else if (!sameRow) {
+          continue;
+        }
 
         const dr = r - square.cx;
         const dc = c - square.cy;
@@ -95,8 +106,7 @@
           } else if (dr * dr0 >= 0) {
             continue;
           }
-        }
-        if (sameRow) {
+        } else {
           if (dc0 === 0) {
             if (dc === 0) continue;
           } else if (dc * dc0 >= 0) {
