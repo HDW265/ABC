@@ -282,6 +282,11 @@ python3 -m http.server 8080
 6. **顶栏**  
    - 预设模板、复制链接、导出 CSV / PNG  
 
+7. **跑图 Path Runner**  
+   - 填起点价 / 目标价 →「开始跑图」  
+   - 规则：`45° → 180° → 循环`，含主轴 180° 与连续边换角  
+   - **算法定稿说明（归档）：** [PATH_ALGORITHM.md](./PATH_ALGORITHM.md)
+
 ---
 
 ## 常见问题
@@ -314,9 +319,11 @@ A：不要。
 
 ```text
 gann-square/
-├── index.html      ← 入口，打开这个
+├── index.html           ← 入口，打开这个
 ├── css/styles.css
-├── js/square.js    ← 九方图生成
-├── js/app.js       ← 界面交互
-└── README.md       ← 本说明
+├── js/square.js         ← 九方图生成
+├── js/path.js           ← 跑图算法（GannPath）
+├── js/app.js            ← 界面交互
+├── PATH_ALGORITHM.md    ← 跑图算法归档（定稿）
+└── README.md            ← 本说明
 ```
