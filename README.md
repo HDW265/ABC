@@ -3,7 +3,7 @@
 ## 江恩九方图网页版
 
 完整逐步说明见：**[gann-square/README.md](./gann-square/README.md)**  
-跑图算法定稿归档见：**[gann-square/PATH_ALGORITHM.md](./gann-square/PATH_ALGORITHM.md)**
+**Constellate（星座）跑图法** 定稿归档见：**[gann-square/PATH_ALGORITHM.md](./gann-square/PATH_ALGORITHM.md)**
 
 ### 快速对照
 

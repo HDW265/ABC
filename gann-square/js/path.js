@@ -1,5 +1,8 @@
 /**
- * Path runner: alternate 45° and 180° steps on the Square of Nine.
+ * Constellate（星座）跑图法 — Path runner on the Square of Nine.
+ *
+ * Official name: Constellate Path / Constellate（星座）跑图法
+ * Spec archive: gann-square/PATH_ALGORITHM.md
  *
  * Downward search rule (matches manual charting):
  * - 45°: among cells on 45° diagonal rays from the current cell,
@@ -19,6 +22,8 @@
  * 922 → 880 → 833 → 793 → 749 → 711 → 669 → 633 → 594 → 560 → 523 → …
  */
 (function (global) {
+  const ALGORITHM_NAME = "Constellate";
+  const ALGORITHM_NAME_ZH = "Constellate（星座）跑图法";
   const MAX_STEPS = 64;
   const CONSEC_MIN = 2;
 
@@ -372,6 +377,8 @@
   }
 
   global.GannPath = {
+    ALGORITHM_NAME,
+    ALGORITHM_NAME_ZH,
     runPath,
     findNearestCell,
     minRingsForValue,
