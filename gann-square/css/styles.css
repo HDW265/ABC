@@ -18,8 +18,11 @@
   --font-display: "Syne", sans-serif;
   --font-ui: "Outfit", sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
-  --panel-left-w: minmax(260px, 300px);
-  --panel-right-w: minmax(240px, 280px);
+  --panel-left-size: 300px;
+  --panel-right-size: 320px;
+  --panel-left-w: var(--panel-left-size);
+  --panel-right-w: var(--panel-right-size);
+  --panel-gutter-w: 8px;
   --panel-rail-w: 44px;
 }
 
@@ -99,11 +102,21 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: var(--panel-left-w) minmax(0, 1fr) var(--panel-right-w);
-  gap: 1rem;
+  grid-template-columns:
+    var(--panel-left-w)
+    var(--panel-gutter-w)
+    minmax(0, 1fr)
+    var(--panel-gutter-w)
+    var(--panel-right-w);
+  gap: 0.55rem 0.35rem;
   padding: 0.75rem 1.5rem 1.5rem;
   min-height: calc(100vh - 140px);
   transition: grid-template-columns 0.28s ease;
+}
+
+.layout.is-resizing {
+  transition: none;
+  user-select: none;
 }
 
 .layout.left-collapsed {
@@ -112,6 +125,44 @@ body {
 
 .layout.right-collapsed {
   --panel-right-w: var(--panel-rail-w);
+}
+
+.panel-resizer {
+  position: relative;
+  z-index: 2;
+  margin: 0.35rem 0;
+  border-radius: 999px;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+  outline: none;
+}
+
+.panel-resizer::after {
+  content: "";
+  position: absolute;
+  top: 18%;
+  bottom: 18%;
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(20, 32, 40, 0.16);
+  transition: background 0.15s ease, width 0.15s ease;
+}
+
+.panel-resizer:hover::after,
+.panel-resizer:focus-visible::after,
+.layout.is-resizing .panel-resizer.is-active::after {
+  width: 4px;
+  background: rgba(184, 101, 47, 0.55);
+}
+
+.left-collapsed .panel-resizer-left,
+.right-collapsed .panel-resizer-right {
+  pointer-events: none;
+  opacity: 0.25;
+  cursor: default;
 }
 
 .panel {
@@ -1045,12 +1096,17 @@ input[type="range"] {
     grid-template-columns: 1fr;
     --panel-left-w: 1fr;
     --panel-right-w: 1fr;
+    --panel-gutter-w: 0px;
   }
 
   .layout.left-collapsed,
   .layout.right-collapsed {
     --panel-left-w: 1fr;
     --panel-right-w: 1fr;
+  }
+
+  .panel-resizer {
+    display: none;
   }
 
   .left-collapsed .controls .panel-body,

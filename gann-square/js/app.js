@@ -84,9 +84,19 @@
     projectChannelHead: $("projectChannelHead"),
     projectChannelBody: $("projectChannelBody"),
     projectChannelsHint: $("projectChannelsHint"),
+    resizeLeft: $("resizeLeft"),
+    resizeRight: $("resizeRight"),
   };
 
   const STORAGE_KEY = "gann-square-ui-v1";
+  const PANEL_WIDTH = {
+    leftDefault: 300,
+    rightDefault: 320,
+    leftMin: 240,
+    leftMax: 480,
+    rightMin: 260,
+    rightMax: 560,
+  };
 
   const state = {
     mode: "price",
@@ -98,6 +108,8 @@
     ringsMax: 50,
     leftCollapsed: false,
     rightCollapsed: false,
+    leftWidth: PANEL_WIDTH.leftDefault,
+    rightWidth: PANEL_WIDTH.rightDefault,
     pathResult: null,
     projectResult: null,
     pathActiveStep: null,
@@ -113,6 +125,8 @@
       if (Number.isFinite(prefs.ringsMax)) state.ringsMax = clampRingsMax(prefs.ringsMax);
       if (typeof prefs.leftCollapsed === "boolean") state.leftCollapsed = prefs.leftCollapsed;
       if (typeof prefs.rightCollapsed === "boolean") state.rightCollapsed = prefs.rightCollapsed;
+      if (Number.isFinite(prefs.leftWidth)) state.leftWidth = clampPanelWidth("left", prefs.leftWidth);
+      if (Number.isFinite(prefs.rightWidth)) state.rightWidth = clampPanelWidth("right", prefs.rightWidth);
     } catch (err) {
       /* ignore */
     }
@@ -125,8 +139,117 @@
         ringsMax: state.ringsMax,
         leftCollapsed: state.leftCollapsed,
         rightCollapsed: state.rightCollapsed,
+        leftWidth: state.leftWidth,
+        rightWidth: state.rightWidth,
       })
     );
+  }
+
+  function clampPanelWidth(side, value) {
+    const n = Math.round(Number(value));
+    if (side === "left") {
+      return Math.min(PANEL_WIDTH.leftMax, Math.max(PANEL_WIDTH.leftMin, n || PANEL_WIDTH.leftDefault));
+    }
+    return Math.min(PANEL_WIDTH.rightMax, Math.max(PANEL_WIDTH.rightMin, n || PANEL_WIDTH.rightDefault));
+  }
+
+  function panelResizeEnabled() {
+    return window.matchMedia("(min-width: 1101px)").matches;
+  }
+
+  function applyPanelWidths() {
+    if (!els.layout) return;
+    els.layout.style.setProperty("--panel-left-size", `${state.leftWidth}px`);
+    els.layout.style.setProperty("--panel-right-size", `${state.rightWidth}px`);
+    if (els.resizeLeft) {
+      els.resizeLeft.setAttribute("aria-valuenow", String(state.leftWidth));
+      els.resizeLeft.setAttribute("aria-valuemin", String(PANEL_WIDTH.leftMin));
+      els.resizeLeft.setAttribute("aria-valuemax", String(PANEL_WIDTH.leftMax));
+    }
+    if (els.resizeRight) {
+      els.resizeRight.setAttribute("aria-valuenow", String(state.rightWidth));
+      els.resizeRight.setAttribute("aria-valuemin", String(PANEL_WIDTH.rightMin));
+      els.resizeRight.setAttribute("aria-valuemax", String(PANEL_WIDTH.rightMax));
+    }
+  }
+
+  function bindPanelResizers() {
+    const bindOne = (el, side) => {
+      if (!el) return;
+
+      el.addEventListener("dblclick", () => {
+        if (!panelResizeEnabled()) return;
+        if (side === "left" && state.leftCollapsed) return;
+        if (side === "right" && state.rightCollapsed) return;
+        state[side === "left" ? "leftWidth" : "rightWidth"] =
+          side === "left" ? PANEL_WIDTH.leftDefault : PANEL_WIDTH.rightDefault;
+        applyPanelWidths();
+        savePrefs();
+        redrawPathAndProject();
+        showToast(side === "left" ? "参数栏已恢复默认宽度" : "解读栏已恢复默认宽度");
+      });
+
+      el.addEventListener("keydown", (ev) => {
+        if (!panelResizeEnabled()) return;
+        if (side === "left" && state.leftCollapsed) return;
+        if (side === "right" && state.rightCollapsed) return;
+        const step = ev.shiftKey ? 24 : 12;
+        let next = side === "left" ? state.leftWidth : state.rightWidth;
+        if (ev.key === "ArrowLeft") {
+          next += side === "left" ? -step : step;
+        } else if (ev.key === "ArrowRight") {
+          next += side === "left" ? step : -step;
+        } else {
+          return;
+        }
+        ev.preventDefault();
+        if (side === "left") state.leftWidth = clampPanelWidth("left", next);
+        else state.rightWidth = clampPanelWidth("right", next);
+        applyPanelWidths();
+        savePrefs();
+        redrawPathAndProject();
+      });
+
+      el.addEventListener("pointerdown", (ev) => {
+        if (!panelResizeEnabled()) return;
+        if (side === "left" && state.leftCollapsed) return;
+        if (side === "right" && state.rightCollapsed) return;
+        if (ev.button != null && ev.button !== 0) return;
+
+        const startX = ev.clientX;
+        const startW = side === "left" ? state.leftWidth : state.rightWidth;
+        els.layout.classList.add("is-resizing");
+        el.classList.add("is-active");
+        el.setPointerCapture?.(ev.pointerId);
+
+        const onMove = (moveEv) => {
+          const dx = moveEv.clientX - startX;
+          if (side === "left") {
+            state.leftWidth = clampPanelWidth("left", startW + dx);
+          } else {
+            state.rightWidth = clampPanelWidth("right", startW - dx);
+          }
+          applyPanelWidths();
+        };
+
+        const onUp = () => {
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+          window.removeEventListener("pointercancel", onUp);
+          els.layout.classList.remove("is-resizing");
+          el.classList.remove("is-active");
+          savePrefs();
+          redrawPathAndProject();
+        };
+
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+        window.addEventListener("pointercancel", onUp);
+      });
+    };
+
+    bindOne(els.resizeLeft, "left");
+    bindOne(els.resizeRight, "right");
   }
 
   function clampRingsMax(value) {
@@ -170,10 +293,12 @@
       els.toggleRight.title = collapsed ? "展开解读面板" : "收起解读面板";
     }
     savePrefs();
+    applyPanelWidths();
     if (state.pathResult) {
       const anyCollapsed = state.leftCollapsed || state.rightCollapsed;
       els.pathMinibar.classList.toggle("hidden", !anyCollapsed);
     }
+    requestAnimationFrame(() => redrawPathAndProject());
   }
 
   function togglePanel(side) {
@@ -1326,10 +1451,12 @@
   function init() {
     els.beginDate.value = todayISO();
     loadPrefs();
+    applyPanelWidths();
     applyRingsMax(state.ringsMax);
     setPanelCollapsed("left", state.leftCollapsed);
     setPanelCollapsed("right", state.rightCollapsed);
     bind();
+    bindPanelResizers();
     const fromUrl = loadUrlState();
     if (!fromUrl) applyParams({ mode: "price", begin: 1, step: 1, rings: 6 });
     render();
