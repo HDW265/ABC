@@ -1193,9 +1193,12 @@
     els.pathTarget.value = "749";
     clearTimeout(state.pathDrawTimer);
     state.pathResult = null;
+    state.projectResult = null;
     state.pathActiveStep = null;
+    state.projectActivePrice = null;
     clearPathOverlay();
     updatePathTable(null);
+    updateProjectPanel(null);
     els.pathMinibar.classList.add("hidden");
     scheduleRender();
   }
