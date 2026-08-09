@@ -107,16 +107,32 @@
     return prices.slice().sort((a, b) => (direction === "down" ? b - a : a - b));
   }
 
+  /** Keep up to `max` prices in encounter order, skipping |Δ|===unit neighbors of kept. */
+  function takeNonAdjacent(prices, direction, max, unit) {
+    const ordered = sortEncounter(prices, direction);
+    const kept = [];
+    for (let i = 0; i < ordered.length; i += 1) {
+      const p = ordered[i];
+      if (kept.some((k) => Math.abs(k - p) === unit)) continue;
+      kept.push(p);
+      if (kept.length >= max) break;
+    }
+    return kept;
+  }
+
   /**
-   * Display subset from a working set (秘诀展示).
-   * - All still before target: keep min+max (drop middles), e.g. 822/833/834 → 822,834
-   * - Mixed / all past target: keep far-side points + first one(s) on the past side
-   *   by encounter order (down: high→low). All-past with 3+ → first two (805,793; drop 792).
+   * Display subset from a working set (秘诀展示). Segments after the first
+   * keep at most 2 targets:
+   * - All still before target: min+max (drop middles), e.g. 822/833/834 → 834,822
+   * - Mixed sides: first encountered before-target + first past-target
+   *   (drops adjacent near-side like 700 then 699 → keep 700 + 680)
+   * - All past target: first two non-adjacent in encounter order (805,793)
    */
-  function pickDisplay(prices, target, direction) {
+  function pickDisplay(prices, target, direction, unit) {
+    const step = Number.isFinite(unit) && unit > 0 ? unit : 1;
     const uniq = uniqueSorted(prices);
     if (uniq.length <= 2) {
-      return sortEncounter(uniq, direction);
+      return takeNonAdjacent(uniq, direction, 2, step);
     }
     if (!Number.isFinite(target)) {
       return sortEncounter([uniq[0], uniq[uniq.length - 1]], direction);
@@ -130,12 +146,12 @@
       return sortEncounter([uniq[0], uniq[uniq.length - 1]], direction);
     }
     if (before.length && past.length) {
+      const firstBefore = sortEncounter(before, direction)[0];
       const firstPast = sortEncounter(past, direction)[0];
-      return sortEncounter([...before, firstPast], direction);
+      return takeNonAdjacent([firstBefore, firstPast], direction, 2, step);
     }
-    // All at/past target: keep first two in encounter order (B: 805,793)
-    const ordered = sortEncounter(past, direction);
-    return ordered.slice(0, 2);
+    // All at/past target: first two non-adjacent (B: 805,793; drop 792)
+    return takeNonAdjacent(past, direction, 2, step);
   }
 
   function channelTitle(segmentCount, templateCount) {
@@ -160,9 +176,10 @@
     const full = [];
     const display = [];
 
+    const unit = Math.abs(Number(square.step)) || 1;
     const first = step90(square, startRaw, direction);
     full[0] = first ? [first.price] : [];
-    display[0] = pickDisplay(full[0], targetRaw, direction);
+    display[0] = full[0].slice();
 
     for (let n = 1; n < segments; n += 1) {
       const prev2 = n === 1 ? [startRaw] : full[n - 2];
@@ -190,7 +207,7 @@
       }
 
       full[n] = working;
-      display[n] = pickDisplay(working, targetRaw, direction);
+      display[n] = pickDisplay(working, targetRaw, direction, unit);
     }
 
     const templates = templatesForSegments(segments);
