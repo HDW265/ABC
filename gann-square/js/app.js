@@ -154,13 +154,25 @@
   }
 
   function panelResizeEnabled() {
-    return window.matchMedia("(min-width: 1101px)").matches;
+    const el = els.resizeLeft || els.resizeRight;
+    if (!el) return false;
+    // Follow CSS visibility (hidden under ≤1100px) instead of a separate media query
+    return window.getComputedStyle(el).display !== "none";
   }
 
   function applyPanelWidths() {
     if (!els.layout) return;
-    els.layout.style.setProperty("--panel-left-size", `${state.leftWidth}px`);
-    els.layout.style.setProperty("--panel-right-size", `${state.rightWidth}px`);
+    // Set width vars directly on the layout so the grid always picks them up
+    if (!state.leftCollapsed) {
+      els.layout.style.setProperty("--panel-left-w", `${state.leftWidth}px`);
+    } else {
+      els.layout.style.removeProperty("--panel-left-w");
+    }
+    if (!state.rightCollapsed) {
+      els.layout.style.setProperty("--panel-right-w", `${state.rightWidth}px`);
+    } else {
+      els.layout.style.removeProperty("--panel-right-w");
+    }
     if (els.resizeLeft) {
       els.resizeLeft.setAttribute("aria-valuenow", String(state.leftWidth));
       els.resizeLeft.setAttribute("aria-valuemin", String(PANEL_WIDTH.leftMin));
@@ -177,12 +189,17 @@
     const bindOne = (el, side) => {
       if (!el) return;
 
+      const canDragSide = () => {
+        if (!panelResizeEnabled()) return false;
+        if (side === "left" && state.leftCollapsed) return false;
+        if (side === "right" && state.rightCollapsed) return false;
+        return true;
+      };
+
       el.addEventListener("dblclick", () => {
-        if (!panelResizeEnabled()) return;
-        if (side === "left" && state.leftCollapsed) return;
-        if (side === "right" && state.rightCollapsed) return;
-        state[side === "left" ? "leftWidth" : "rightWidth"] =
-          side === "left" ? PANEL_WIDTH.leftDefault : PANEL_WIDTH.rightDefault;
+        if (!canDragSide()) return;
+        if (side === "left") state.leftWidth = PANEL_WIDTH.leftDefault;
+        else state.rightWidth = PANEL_WIDTH.rightDefault;
         applyPanelWidths();
         savePrefs();
         redrawPathAndProject();
@@ -190,18 +207,12 @@
       });
 
       el.addEventListener("keydown", (ev) => {
-        if (!panelResizeEnabled()) return;
-        if (side === "left" && state.leftCollapsed) return;
-        if (side === "right" && state.rightCollapsed) return;
+        if (!canDragSide()) return;
         const step = ev.shiftKey ? 24 : 12;
         let next = side === "left" ? state.leftWidth : state.rightWidth;
-        if (ev.key === "ArrowLeft") {
-          next += side === "left" ? -step : step;
-        } else if (ev.key === "ArrowRight") {
-          next += side === "left" ? step : -step;
-        } else {
-          return;
-        }
+        if (ev.key === "ArrowLeft") next += side === "left" ? -step : step;
+        else if (ev.key === "ArrowRight") next += side === "left" ? step : -step;
+        else return;
         ev.preventDefault();
         if (side === "left") state.leftWidth = clampPanelWidth("left", next);
         else state.rightWidth = clampPanelWidth("right", next);
@@ -210,25 +221,20 @@
         redrawPathAndProject();
       });
 
-      el.addEventListener("pointerdown", (ev) => {
-        if (!panelResizeEnabled()) return;
-        if (side === "left" && state.leftCollapsed) return;
-        if (side === "right" && state.rightCollapsed) return;
-        if (ev.button != null && ev.button !== 0) return;
-
-        const startX = ev.clientX;
+      const startDrag = (clientX, pointerId) => {
+        if (!canDragSide()) return false;
+        const startX = clientX;
         const startW = side === "left" ? state.leftWidth : state.rightWidth;
         els.layout.classList.add("is-resizing");
+        document.body.classList.add("panel-resizing");
         el.classList.add("is-active");
-        el.setPointerCapture?.(ev.pointerId);
 
         const onMove = (moveEv) => {
-          const dx = moveEv.clientX - startX;
-          if (side === "left") {
-            state.leftWidth = clampPanelWidth("left", startW + dx);
-          } else {
-            state.rightWidth = clampPanelWidth("right", startW - dx);
-          }
+          const x = moveEv.clientX != null ? moveEv.clientX : moveEv.touches?.[0]?.clientX;
+          if (!Number.isFinite(x)) return;
+          const dx = x - startX;
+          if (side === "left") state.leftWidth = clampPanelWidth("left", startW + dx);
+          else state.rightWidth = clampPanelWidth("right", startW - dx);
           applyPanelWidths();
         };
 
@@ -236,15 +242,43 @@
           window.removeEventListener("pointermove", onMove);
           window.removeEventListener("pointerup", onUp);
           window.removeEventListener("pointercancel", onUp);
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
           els.layout.classList.remove("is-resizing");
+          document.body.classList.remove("panel-resizing");
           el.classList.remove("is-active");
           savePrefs();
           redrawPathAndProject();
         };
 
-        window.addEventListener("pointermove", onMove);
-        window.addEventListener("pointerup", onUp);
-        window.addEventListener("pointercancel", onUp);
+        if (window.PointerEvent) {
+          window.addEventListener("pointermove", onMove);
+          window.addEventListener("pointerup", onUp);
+          window.addEventListener("pointercancel", onUp);
+          try {
+            if (pointerId != null) el.setPointerCapture(pointerId);
+          } catch (err) {
+            /* ignore capture failures */
+          }
+        } else {
+          window.addEventListener("mousemove", onMove);
+          window.addEventListener("mouseup", onUp);
+        }
+        return true;
+      };
+
+      el.addEventListener("pointerdown", (ev) => {
+        if (ev.button != null && ev.button !== 0) return;
+        if (!startDrag(ev.clientX, ev.pointerId)) return;
+        ev.preventDefault();
+      });
+
+      // Fallback for environments where pointer events are flaky
+      el.addEventListener("mousedown", (ev) => {
+        if (window.PointerEvent) return;
+        if (ev.button !== 0) return;
+        if (!startDrag(ev.clientX, null)) return;
+        ev.preventDefault();
       });
     };
 

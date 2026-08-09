@@ -18,11 +18,9 @@
   --font-display: "Syne", sans-serif;
   --font-ui: "Outfit", sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
-  --panel-left-size: 300px;
-  --panel-right-size: 320px;
-  --panel-left-w: var(--panel-left-size);
-  --panel-right-w: var(--panel-right-size);
-  --panel-gutter-w: 8px;
+  --panel-left-w: 300px;
+  --panel-right-w: 320px;
+  --panel-gutter-w: 12px;
   --panel-rail-w: 44px;
 }
 
@@ -129,33 +127,48 @@ body {
 
 .panel-resizer {
   position: relative;
-  z-index: 2;
-  margin: 0.35rem 0;
+  z-index: 5;
+  align-self: stretch;
+  min-width: 12px;
+  margin: 0;
   border-radius: 999px;
   cursor: col-resize;
   touch-action: none;
+  user-select: none;
   background: transparent;
   outline: none;
+}
+
+/* Wider invisible hit area so the bar is easy to grab */
+.panel-resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  right: -6px;
 }
 
 .panel-resizer::after {
   content: "";
   position: absolute;
-  top: 18%;
-  bottom: 18%;
+  top: 12%;
+  bottom: 12%;
   left: 50%;
-  width: 3px;
+  width: 4px;
   transform: translateX(-50%);
   border-radius: 999px;
-  background: rgba(20, 32, 40, 0.16);
-  transition: background 0.15s ease, width 0.15s ease;
+  background: rgba(20, 32, 40, 0.18);
+  transition: background 0.15s ease, width 0.15s ease, box-shadow 0.15s ease;
+  pointer-events: none;
 }
 
 .panel-resizer:hover::after,
 .panel-resizer:focus-visible::after,
 .layout.is-resizing .panel-resizer.is-active::after {
-  width: 4px;
-  background: rgba(184, 101, 47, 0.55);
+  width: 5px;
+  background: rgba(184, 101, 47, 0.7);
+  box-shadow: 0 0 0 3px rgba(184, 101, 47, 0.12);
 }
 
 .left-collapsed .panel-resizer-left,
@@ -163,6 +176,11 @@ body {
   pointer-events: none;
   opacity: 0.25;
   cursor: default;
+}
+
+body.panel-resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .panel {
