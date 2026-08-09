@@ -57,6 +57,9 @@
     pathSnapHint: $("pathSnapHint"),
     pathLabelIndex: $("pathLabelIndex"),
     pathLabelPrice: $("pathLabelPrice"),
+    pathProjectDots: $("pathProjectDots"),
+    pathProjectLines: $("pathProjectLines"),
+    pathSegments: $("pathSegments"),
     pathAutoExpand: $("pathAutoExpand"),
     pathCollapsePanels: $("pathCollapsePanels"),
     btnPathRun: $("btnPathRun"),
@@ -72,6 +75,15 @@
     pathTableBody: $("pathTableBody"),
     btnPathCopy: $("btnPathCopy"),
     btnPathExport: $("btnPathExport"),
+    projectResult: $("projectResult"),
+    projectSecret: $("projectSecret"),
+    projectChips: $("projectChips"),
+    btnProjectCopy: $("btnProjectCopy"),
+    projectChannelsDetails: $("projectChannelsDetails"),
+    projectChannelsTitle: $("projectChannelsTitle"),
+    projectChannelHead: $("projectChannelHead"),
+    projectChannelBody: $("projectChannelBody"),
+    projectChannelsHint: $("projectChannelsHint"),
   };
 
   const STORAGE_KEY = "gann-square-ui-v1";
@@ -87,8 +99,10 @@
     leftCollapsed: false,
     rightCollapsed: false,
     pathResult: null,
+    projectResult: null,
     pathActiveStep: null,
     pathDrawTimer: null,
+    projectActivePrice: null,
   };
 
   function loadPrefs() {
@@ -330,8 +344,7 @@
     }
 
     requestAnimationFrame(() => {
-      if (state.pathResult) drawPathOverlay(state.pathResult);
-      else clearPathOverlay();
+      redrawPathAndProject();
     });
   }
 
@@ -565,6 +578,11 @@
     return checked ? checked.value : "down";
   }
 
+  function pathOutputMode() {
+    const checked = document.querySelector('input[name="pathOutput"]:checked');
+    return checked ? checked.value : "both";
+  }
+
   function pathPriceEps() {
     const step = state.square ? Math.abs(state.square.step || 1) : Math.abs(Number(els.step.value) || 1);
     return Math.max(step * 0.5, 0.5);
@@ -685,93 +703,228 @@
     return move;
   }
 
-  function drawPathOverlay(result, revealUntil) {
-    clearPathOverlay();
-    if (!result || !result.steps || result.steps.length < 1 || !els.pathOverlay) return;
-
-    const resolved = resolvePathCells(result);
-    const steps = resolved.steps;
-    const limit = Number.isFinite(revealUntil) ? revealUntil : steps.length - 1;
-    const showIndex = els.pathLabelIndex.checked;
-    const showPrice = els.pathLabelPrice.checked;
-    const rings = clampRings(els.rings.value);
-    const forceIndexOnly = rings >= 19;
-    const allowPrice = showPrice && !forceIndexOnly;
-
+  function preparePathOverlaySize() {
+    if (!els.pathOverlay || !els.squareStack) return null;
     const width = els.squareStack.offsetWidth;
     const height = els.squareStack.offsetHeight;
     els.pathOverlay.setAttribute("viewBox", `0 0 ${width} ${height}`);
     els.pathOverlay.setAttribute("width", String(width));
     els.pathOverlay.setAttribute("height", String(height));
+    return { width, height, ns: "http://www.w3.org/2000/svg" };
+  }
 
-    const centers = steps.map((s) => cellCenter(s.cell.row, s.cell.col));
-    const ns = "http://www.w3.org/2000/svg";
+  function drawPathOverlay(result, revealUntil) {
+    clearPathOverlay();
+    const sized = preparePathOverlaySize();
+    if (!sized) return;
 
-    for (let i = 0; i < steps.length - 1; i += 1) {
-      if (i + 1 > limit) break;
-      const a = centers[i];
-      const b = centers[i + 1];
-      if (!a || !b) continue;
-      const line = document.createElementNS(ns, "line");
-      line.setAttribute("x1", a.x);
-      line.setAttribute("y1", a.y);
-      line.setAttribute("x2", b.x);
-      line.setAttribute("y2", b.y);
-      const move = steps[i + 1].move;
-      line.setAttribute("class", move === "180" ? "path-line-180" : "path-line-45");
-      els.pathOverlay.appendChild(line);
+    if (result && result.steps && result.steps.length >= 1) {
+      const resolved = resolvePathCells(result);
+      const steps = resolved.steps;
+      const limit = Number.isFinite(revealUntil) ? revealUntil : steps.length - 1;
+      const showIndex = els.pathLabelIndex.checked;
+      const showPrice = els.pathLabelPrice.checked;
+      const rings = clampRings(els.rings.value);
+      const forceIndexOnly = rings >= 19;
+      const allowPrice = showPrice && !forceIndexOnly;
+      const centers = steps.map((s) => cellCenter(s.cell.row, s.cell.col));
+      const ns = sized.ns;
 
-      const angle = Math.atan2(b.y - a.y, b.x - a.x);
-      const ah = 7;
-      const ax = b.x - Math.cos(angle) * (b.r + 2);
-      const ay = b.y - Math.sin(angle) * (b.r + 2);
-      const arrow = document.createElementNS(ns, "polygon");
-      const p1 = `${ax},${ay}`;
-      const p2 = `${ax - ah * Math.cos(angle - 0.4)},${ay - ah * Math.sin(angle - 0.4)}`;
-      const p3 = `${ax - ah * Math.cos(angle + 0.4)},${ay - ah * Math.sin(angle + 0.4)}`;
-      arrow.setAttribute("points", `${p1} ${p2} ${p3}`);
-      arrow.setAttribute("class", "path-arrow");
-      arrow.style.color = move === "180" ? "#1f5f8a" : "#1f6f6a";
-      els.pathOverlay.appendChild(arrow);
+      for (let i = 0; i < steps.length - 1; i += 1) {
+        if (i + 1 > limit) break;
+        const a = centers[i];
+        const b = centers[i + 1];
+        if (!a || !b) continue;
+        const line = document.createElementNS(ns, "line");
+        line.setAttribute("x1", a.x);
+        line.setAttribute("y1", a.y);
+        line.setAttribute("x2", b.x);
+        line.setAttribute("y2", b.y);
+        const move = steps[i + 1].move;
+        line.setAttribute("class", move === "180" ? "path-line-180" : "path-line-45");
+        els.pathOverlay.appendChild(line);
+
+        const angle = Math.atan2(b.y - a.y, b.x - a.x);
+        const ah = 7;
+        const ax = b.x - Math.cos(angle) * (b.r + 2);
+        const ay = b.y - Math.sin(angle) * (b.r + 2);
+        const arrow = document.createElementNS(ns, "polygon");
+        const p1 = `${ax},${ay}`;
+        const p2 = `${ax - ah * Math.cos(angle - 0.4)},${ay - ah * Math.sin(angle - 0.4)}`;
+        const p3 = `${ax - ah * Math.cos(angle + 0.4)},${ay - ah * Math.sin(angle + 0.4)}`;
+        arrow.setAttribute("points", `${p1} ${p2} ${p3}`);
+        arrow.setAttribute("class", "path-arrow");
+        arrow.style.color = move === "180" ? "#1f5f8a" : "#1f6f6a";
+        els.pathOverlay.appendChild(arrow);
+      }
+
+      for (let i = 0; i <= Math.min(limit, steps.length - 1); i += 1) {
+        const s = steps[i];
+        const p = centers[i];
+        if (!p) continue;
+        const isStart = i === 0;
+        const isEnd = i === steps.length - 1 && resolved.reached;
+        const circle = document.createElementNS(ns, "circle");
+        circle.setAttribute("cx", p.x);
+        circle.setAttribute("cy", p.y);
+        circle.setAttribute("r", p.r);
+        let cls = "path-node mid";
+        if (isStart) cls = "path-node start";
+        if (isEnd) cls = "path-node end";
+        if (state.pathActiveStep === i) cls += " active";
+        circle.setAttribute("class", cls);
+        els.pathOverlay.appendChild(circle);
+
+        if (showIndex) {
+          const badge = document.createElementNS(ns, "text");
+          badge.setAttribute("x", p.x);
+          badge.setAttribute("y", p.y);
+          badge.setAttribute("class", "path-badge");
+          badge.textContent = `#${i}`;
+          els.pathOverlay.appendChild(badge);
+        }
+
+        const labels = [];
+        if (allowPrice) labels.push(GannSquare.formatNumber(s.price));
+        if (isEnd) labels.push("目标✓");
+        if (labels.length) {
+          const lab = document.createElementNS(ns, "text");
+          lab.setAttribute("x", p.x);
+          lab.setAttribute("y", p.y + p.r + 11);
+          lab.setAttribute("class", "path-label");
+          lab.textContent = labels.join(" · ");
+          els.pathOverlay.appendChild(lab);
+        }
+      }
     }
 
-    for (let i = 0; i <= Math.min(limit, steps.length - 1); i += 1) {
-      const s = steps[i];
-      const p = centers[i];
-      if (!p) continue;
-      const isStart = i === 0;
-      const isEnd = i === steps.length - 1 && resolved.reached;
-      const circle = document.createElementNS(ns, "circle");
-      circle.setAttribute("cx", p.x);
-      circle.setAttribute("cy", p.y);
-      circle.setAttribute("r", p.r);
-      let cls = "path-node mid";
-      if (isStart) cls = "path-node start";
-      if (isEnd) cls = "path-node end";
-      if (state.pathActiveStep === i) cls += " active";
-      circle.setAttribute("class", cls);
-      els.pathOverlay.appendChild(circle);
+    drawProjectOverlay();
+  }
 
-      if (showIndex) {
-        const badge = document.createElementNS(ns, "text");
-        badge.setAttribute("x", p.x);
-        badge.setAttribute("y", p.y);
-        badge.setAttribute("class", "path-badge");
-        badge.textContent = `#${i}`;
-        els.pathOverlay.appendChild(badge);
-      }
+  function drawProjectOverlay() {
+    const proj = state.projectResult;
+    if (!proj || !proj.ok || !els.pathOverlay) return;
+    const sized = preparePathOverlaySize();
+    if (!sized) return;
+    const ns = sized.ns;
+    const showDots = !els.pathProjectDots || els.pathProjectDots.checked;
+    const showLines = els.pathProjectLines && els.pathProjectLines.checked;
 
-      const labels = [];
-      if (allowPrice) labels.push(GannSquare.formatNumber(s.price));
-      if (isEnd) labels.push("目标✓");
-      if (labels.length) {
-        const lab = document.createElementNS(ns, "text");
-        lab.setAttribute("x", p.x);
-        lab.setAttribute("y", p.y + p.r + 11);
-        lab.setAttribute("class", "path-label");
-        lab.textContent = labels.join(" · ");
-        els.pathOverlay.appendChild(lab);
-      }
+    if (showLines && proj.channels) {
+      proj.channels.forEach((ch) => {
+        const pts = [];
+        const startHit = GannSquare.findNearest(state.square, proj.startRaw);
+        if (startHit.cell) pts.push(cellCenter(startHit.cell.row, startHit.cell.col));
+        ch.cells.forEach((price) => {
+          if (!Number.isFinite(price)) return;
+          const hit = GannSquare.findNearest(state.square, price);
+          if (hit.cell) pts.push(cellCenter(hit.cell.row, hit.cell.col));
+        });
+        for (let i = 0; i < pts.length - 1; i += 1) {
+          const a = pts[i];
+          const b = pts[i + 1];
+          if (!a || !b) continue;
+          const line = document.createElementNS(ns, "line");
+          line.setAttribute("x1", a.x);
+          line.setAttribute("y1", a.y);
+          line.setAttribute("x2", b.x);
+          line.setAttribute("y2", b.y);
+          line.setAttribute("class", "project-channel-line");
+          els.pathOverlay.appendChild(line);
+        }
+      });
+    }
+
+    if (showDots && proj.allDisplayPrices) {
+      proj.allDisplayPrices.forEach((price) => {
+        const hit = GannSquare.findNearest(state.square, price);
+        if (!hit.cell) return;
+        const p = cellCenter(hit.cell.row, hit.cell.col);
+        if (!p) return;
+        const mark = document.createElementNS(ns, "circle");
+        mark.setAttribute("cx", p.x);
+        mark.setAttribute("cy", p.y);
+        mark.setAttribute("r", Math.max(5, p.r * 0.85));
+        mark.setAttribute("class", "project-mark");
+        if (state.projectActivePrice === price) {
+          mark.setAttribute("stroke-width", "2.4");
+        }
+        els.pathOverlay.appendChild(mark);
+      });
+    }
+  }
+
+  function updateProjectPanel(proj) {
+    if (!els.projectResult) return;
+    if (!proj || !proj.ok) {
+      els.projectResult.classList.add("hidden");
+      return;
+    }
+    els.projectResult.classList.remove("hidden");
+    els.projectSecret.textContent = proj.secretLine;
+    els.projectChannelsTitle.textContent = `${proj.channelTitle}（${proj.templateCount} 条模板 · ${proj.segments} 段）`;
+    els.projectChannelsHint.textContent = "空档为 180° 跨列；定稿价见上方芯片。";
+
+    const starPrices = new Set();
+    if (state.pathResult && state.pathResult.steps) {
+      state.pathResult.steps.forEach((s) => starPrices.add(s.price));
+    }
+
+    els.projectChips.innerHTML = "";
+    proj.display.forEach((prices, segIdx) => {
+      prices.forEach((price) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "project-chip";
+        if (starPrices.has(price)) btn.classList.add("star");
+        if (state.projectActivePrice === price) btn.classList.add("active");
+        btn.innerHTML = `<span class="chip-seg">${segIdx + 1}</span>${GannSquare.formatNumber(price)}`;
+        btn.addEventListener("click", () => {
+          state.projectActivePrice = price;
+          const hit = GannSquare.findNearest(state.square, price);
+          if (hit.cell) {
+            selectCell(hit.cell);
+            const el = els.square.querySelector(
+              `[data-row="${hit.cell.row}"][data-col="${hit.cell.col}"]`
+            );
+            if (el) el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+          }
+          updateProjectPanel(state.projectResult);
+          redrawPathAndProject();
+        });
+        els.projectChips.appendChild(btn);
+      });
+    });
+
+    const head = els.projectChannelHead;
+    const body = els.projectChannelBody;
+    head.innerHTML = "";
+    body.innerHTML = "";
+    const hr = document.createElement("tr");
+    hr.innerHTML = `<th>模板</th>${proj.display
+      .map((_, i) => `<th>${i + 1}</th>`)
+      .join("")}`;
+    head.appendChild(hr);
+    proj.channels.forEach((ch) => {
+      const tr = document.createElement("tr");
+      const cells = ch.cells
+        .map((p) =>
+          Number.isFinite(p)
+            ? `<td class="mono">${GannSquare.formatNumber(p)}</td>`
+            : `<td class="empty">—</td>`
+        )
+        .join("");
+      tr.innerHTML = `<td class="mono">${ch.label}</td>${cells}`;
+      body.appendChild(tr);
+    });
+  }
+
+  function redrawPathAndProject() {
+    if (state.pathResult) drawPathOverlay(state.pathResult);
+    else {
+      clearPathOverlay();
+      preparePathOverlaySize();
+      drawProjectOverlay();
     }
   }
 
@@ -790,6 +943,7 @@
       : "";
     els.pathResultSummary.textContent = `${prices} · ${result.reached ? "已到达" : "未到达"} · ${result.steps.length - 1} 步${snapNote}`;
     els.pathSummary.textContent = result.message;
+    updateMinibarFromState();
 
     els.pathTableBody.innerHTML = "";
     result.steps.forEach((s, i) => {
@@ -871,47 +1025,118 @@
 
     updateSnapHint();
 
-    const result = GannPath.runPath(state.square, {
-      start,
-      target,
-      direction: sync.direction,
-    });
+    const mode = pathOutputMode();
+    const wantLine = mode === "line" || mode === "both";
+    const wantProject = mode === "project" || mode === "both";
+    const segments = Math.max(2, Math.min(8, Number(els.pathSegments?.value) || 4));
 
-    if (!result.ok) {
-      showToast(result.message || "跑图失败");
+    clearTimeout(state.pathDrawTimer);
+    state.pathResult = null;
+    state.projectResult = null;
+    state.pathActiveStep = null;
+    state.projectActivePrice = null;
+    clearPathOverlay();
+    updatePathTable(null);
+    updateProjectPanel(null);
+
+    if (wantProject) {
+      const proj = GannProject.runProjection(state.square, {
+        start,
+        target,
+        direction: sync.direction,
+        segments,
+      });
+      if (!proj.ok) {
+        showToast(proj.message || "推演失败");
+        return;
+      }
+      state.projectResult = proj;
+      updateProjectPanel(proj);
+    }
+
+    if (wantLine) {
+      const result = GannPath.runPath(state.square, {
+        start,
+        target,
+        direction: sync.direction,
+      });
+      if (!result.ok) {
+        showToast(result.message || "跑图失败");
+        if (state.projectResult) redrawPathAndProject();
+        return;
+      }
+      state.pathResult = result;
+      updatePathTable(result);
+      if (els.pathCollapsePanels.checked) {
+        setPanelCollapsed("left", true);
+        setPanelCollapsed("right", true);
+      }
+      els.hlCross.checked = true;
+      els.hlDiag.checked = true;
+      animatePath(result);
+      const first = result.steps[0];
+      if (first) {
+        const el = els.square.querySelector(
+          `[data-row="${first.cell.row}"][data-col="${first.cell.col}"]`
+        );
+        if (el) el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+      }
+    } else if (state.projectResult) {
+      if (els.pathCollapsePanels.checked) {
+        setPanelCollapsed("left", true);
+        setPanelCollapsed("right", true);
+      }
+      els.hlCross.checked = true;
+      els.hlDiag.checked = true;
+      redrawPathAndProject();
+      updateMinibarFromState();
+    }
+
+    if (state.projectResult) {
+      updateProjectPanel(state.projectResult);
+    }
+    updateMinibarFromState();
+
+    if (state.projectResult && !state.pathResult) {
+      els.pathSummary.textContent = state.projectResult.secretLine;
+    } else if (state.pathResult && state.projectResult) {
+      els.pathSummary.textContent = `${state.pathResult.message} · 推演已生成`;
+    }
+
+    const toastBits = [];
+    if (wantLine) toastBits.push(state.pathResult?.reached ? "单线完成" : "单线结束");
+    if (wantProject) toastBits.push("推演完成");
+    showToast(toastBits.join(" · ") || "完成");
+  }
+
+  function updateMinibarFromState() {
+    if (!els.pathMinibar) return;
+    const parts = [];
+    if (state.pathResult?.ok) {
+      parts.push(state.pathResult.steps.map((s) => GannSquare.formatNumber(s.price)).join(" → "));
+    }
+    if (state.projectResult?.ok) {
+      parts.push(`推演${state.projectResult.segments}段`);
+    }
+    if (!parts.length) {
+      els.pathMinibar.classList.add("hidden");
       return;
     }
-
-    state.pathResult = result;
-    state.pathActiveStep = null;
-
-    if (els.pathCollapsePanels.checked) {
-      setPanelCollapsed("left", true);
-      setPanelCollapsed("right", true);
-    }
-
-    els.hlCross.checked = true;
-    els.hlDiag.checked = true;
-
-    updatePathTable(result);
-    animatePath(result);
-    showToast(result.reached ? "跑图完成" : "跑图结束（未完全到达）");
-
-    const first = result.steps[0];
-    if (first) {
-      const el = els.square.querySelector(`[data-row="${first.cell.row}"][data-col="${first.cell.col}"]`);
-      if (el) el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
-    }
+    els.pathMinibar.classList.remove("hidden");
+    els.pathMinibarText.textContent = parts.join(" · ");
   }
 
   function clearPath() {
     clearTimeout(state.pathDrawTimer);
     state.pathResult = null;
+    state.projectResult = null;
     state.pathActiveStep = null;
+    state.projectActivePrice = null;
     clearPathOverlay();
     updatePathTable(null);
+    updateProjectPanel(null);
     els.pathMinibar.classList.add("hidden");
-    showToast("已清除路径");
+    showToast("已清除路径与推演");
   }
 
   async function copyPath() {
@@ -1061,6 +1286,17 @@
     els.btnPathClear.addEventListener("click", clearPath);
     els.btnPathCopy.addEventListener("click", copyPath);
     els.btnPathExport.addEventListener("click", exportPathCsv);
+    if (els.btnProjectCopy) {
+      els.btnProjectCopy.addEventListener("click", async () => {
+        if (!state.projectResult?.secretLine) return;
+        try {
+          await navigator.clipboard.writeText(state.projectResult.secretLine);
+          showToast("秘诀已复制");
+        } catch (err) {
+          showToast("复制失败");
+        }
+      });
+    }
     els.btnPathExpandPanels.addEventListener("click", () => {
       setPanelCollapsed("left", false);
       setPanelCollapsed("right", false);
@@ -1073,13 +1309,14 @@
     document.querySelectorAll('input[name="pathDir"]').forEach((el) => {
       el.addEventListener("change", updateSnapHint);
     });
-    ["pathLabelIndex", "pathLabelPrice"].forEach((id) => {
+    ["pathLabelIndex", "pathLabelPrice", "pathProjectDots", "pathProjectLines"].forEach((id) => {
+      if (!els[id]) return;
       els[id].addEventListener("change", () => {
-        if (state.pathResult) drawPathOverlay(state.pathResult);
+        redrawPathAndProject();
       });
     });
     window.addEventListener("resize", () => {
-      if (state.pathResult) drawPathOverlay(state.pathResult);
+      redrawPathAndProject();
     });
   }
 

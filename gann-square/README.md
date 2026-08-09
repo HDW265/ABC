@@ -285,7 +285,8 @@ python3 -m http.server 8080
 7. **Constellate（星座）跑图**  
    - 填起点价 / 目标价 →「开始跑图」  
    - 方向由高低点自动判定（高→低向下，低→高向上；相同则提示调整）  
-   - 算法：**Constellate（星座）跑图法** — `45° → 180° → 循环`，含主轴 180° 与连续边换角  
+   - 输出：默认 **单线 + 推演**（可改仅单线 / 仅推演）；推演段数默认 4  
+   - 右侧：秘诀串、价位芯片、五/八通道明细；画布推演默认打点  
    - **算法定稿归档：** [PATH_ALGORITHM.md](./PATH_ALGORITHM.md)
 
 ---
@@ -323,7 +324,8 @@ gann-square/
 ├── index.html           ← 入口，打开这个
 ├── css/styles.css
 ├── js/square.js         ← 九方图生成
-├── js/path.js           ← Constellate（星座）跑图法（GannPath）
+├── js/path.js           ← Constellate 单线（GannPath）
+├── js/project.js        ← 推演表（GannProject）
 ├── js/app.js            ← 界面交互
 ├── PATH_ALGORITHM.md    ← Constellate 算法归档（定稿）
 └── README.md            ← 本说明

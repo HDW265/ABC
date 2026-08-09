@@ -618,9 +618,87 @@ input[type="range"] {
   gap: 0.35rem;
 }
 
+.radio-row.stacked {
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
 .compact-checks {
   grid-template-columns: repeat(2, auto);
   gap: 0.35rem 0.75rem;
+}
+
+.project-secret {
+  margin: 0 0 0.65rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.project-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.65rem;
+}
+
+.project-chip {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: rgba(255, 252, 248, 0.95);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.project-chip:hover,
+.project-chip.active {
+  background: rgba(184, 101, 47, 0.12);
+  border-color: rgba(184, 101, 47, 0.45);
+}
+
+.project-chip .chip-seg {
+  color: var(--ink-soft);
+  margin-right: 0.25rem;
+  font-size: 0.68rem;
+}
+
+.project-chip.star {
+  box-shadow: inset 0 0 0 1px rgba(31, 111, 106, 0.45);
+}
+
+.project-channels {
+  margin-top: 0.55rem;
+  font-size: 0.88rem;
+}
+
+.project-channels summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+  margin-bottom: 0.45rem;
+}
+
+.project-channel-table td.empty {
+  color: var(--ink-soft);
+  opacity: 0.55;
+}
+
+.path-overlay .project-mark {
+  fill: none;
+  stroke: #8a4b2a;
+  stroke-width: 1.6;
+}
+
+.path-overlay .project-channel-line {
+  fill: none;
+  stroke: rgba(138, 75, 42, 0.35);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 4;
 }
 
 .path-actions {
@@ -902,6 +980,11 @@ input[type="range"] {
 }
 .swatch.path180 {
   background: repeating-linear-gradient(90deg, #1f5f8a 0 4px, transparent 4px 7px);
+}
+.swatch.project-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px #8a4b2a;
+  border-radius: 50%;
 }
 
 .footer {

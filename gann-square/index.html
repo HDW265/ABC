@@ -140,10 +140,24 @@
           </select>
         </label>
         <div class="field">
+          <span>输出</span>
+          <div class="radio-row stacked">
+            <label><input type="radio" name="pathOutput" value="both" checked /> 单线 + 推演</label>
+            <label><input type="radio" name="pathOutput" value="line" /> 仅单线</label>
+            <label><input type="radio" name="pathOutput" value="project" /> 仅推演</label>
+          </div>
+        </div>
+        <label class="field">
+          <span>推演段数</span>
+          <input id="pathSegments" type="number" min="2" max="8" value="4" step="1" />
+        </label>
+        <div class="field">
           <span>标注</span>
           <div class="checks compact-checks">
             <label><input type="checkbox" id="pathLabelIndex" checked /> 序号</label>
             <label><input type="checkbox" id="pathLabelPrice" /> 价位</label>
+            <label><input type="checkbox" id="pathProjectDots" checked /> 推演打点</label>
+            <label><input type="checkbox" id="pathProjectLines" /> 通道线</label>
           </div>
         </div>
         <div class="checks">
@@ -218,8 +232,27 @@
         <button type="button" class="panel-toggle" id="toggleRight" aria-label="收起解读面板" title="收起解读面板">›</button>
       </div>
       <div class="panel-body" id="panelRightBody">
+      <section class="path-result hidden" id="projectResult">
+        <h2>推演目标位</h2>
+        <p class="project-secret mono" id="projectSecret">—</p>
+        <div class="project-chips" id="projectChips" aria-label="分段目标价位"></div>
+        <div class="path-result-actions">
+          <button type="button" class="btn ghost compact" id="btnProjectCopy">复制秘诀</button>
+        </div>
+        <details class="project-channels" id="projectChannelsDetails">
+          <summary id="projectChannelsTitle">五通道明细</summary>
+          <div class="path-table-wrap">
+            <table class="path-table project-channel-table" id="projectChannelTable">
+              <thead id="projectChannelHead"></thead>
+              <tbody id="projectChannelBody"></tbody>
+            </table>
+          </div>
+          <p class="hint" id="projectChannelsHint"></p>
+        </details>
+      </section>
+
       <section class="path-result hidden" id="pathResult">
-        <h2>路径结果</h2>
+        <h2>单线路径</h2>
         <p class="path-result-summary" id="pathResultSummary">—</p>
         <div class="path-table-wrap">
           <table class="path-table" id="pathTable">
@@ -267,6 +300,7 @@
           <li><span class="swatch ring"></span>环层底色交替</li>
           <li><span class="swatch path45"></span>Constellate 45° 实线</li>
           <li><span class="swatch path180"></span>Constellate 180° 虚线</li>
+          <li><span class="swatch project-dot"></span>推演目标点</li>
         </ul>
       </div>
       </div>
@@ -279,6 +313,7 @@
 
   <script src="./js/square.js"></script>
   <script src="./js/path.js"></script>
+  <script src="./js/project.js"></script>
   <script src="./js/app.js"></script>
 </body>
 </html>
