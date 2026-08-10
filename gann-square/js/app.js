@@ -17,6 +17,7 @@
     ringsMax: $("ringsMax"),
     ringsLabel: $("ringsLabel"),
     sizeHint: $("sizeHint"),
+    stepRangeHint: $("stepRangeHint"),
     perfHint: $("perfHint"),
     beginDate: $("beginDate"),
     timeStepUnit: $("timeStepUnit"),
@@ -354,6 +355,29 @@
     }
   }
 
+  function updateStepRangeHint(params, square) {
+    if (params.mode !== "price" || params.step >= 0) {
+      els.stepRangeHint.classList.add("hidden");
+      els.stepRangeHint.classList.remove("warn");
+      return;
+    }
+    const cellCount = square.size * square.size;
+    const range = GannSquare.priceRange(square.begin, square.step, cellCount);
+    if (range.min >= 0) {
+      els.stepRangeHint.classList.add("hidden");
+      els.stepRangeHint.classList.remove("warn");
+      return;
+    }
+    const maxRings = GannSquare.maxRingsWithoutNegative(square.begin, square.step);
+    const safeCells = maxRings ? (2 * maxRings - 1) ** 2 : cellCount;
+    const safeRange = GannSquare.priceRange(square.begin, square.step, safeCells);
+    els.stepRangeHint.textContent =
+      `负步长且环数偏大：最外圈最低约 ${GannSquare.formatNumber(range.min)}；` +
+      `建议环数 ≤ ${maxRings}（最外圈约 ${GannSquare.formatNumber(safeRange.min)}）`;
+    els.stepRangeHint.classList.remove("hidden");
+    els.stepRangeHint.classList.add("warn");
+  }
+
   function todayISO() {
     const d = new Date();
     const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -436,7 +460,7 @@
   function render() {
     const params = readParams();
     if (!Number.isFinite(params.begin)) params.begin = 1;
-    if (!Number.isFinite(params.step) || params.step <= 0) params.step = 1;
+    if (!Number.isFinite(params.step) || params.step === 0) params.step = 1;
     syncRingsControls(params.rings);
 
     const square = GannSquare.generateSquare(params);
@@ -446,6 +470,7 @@
     const cellCount = size * size;
     els.sizeHint.textContent = `边长 ${size} × ${size} · 共 ${cellCount.toLocaleString()} 格`;
     updatePerfHint(params.rings, cellCount);
+    updateStepRangeHint(params, square);
 
     els.square.className = "square";
     if (params.rings >= 15) els.square.classList.add("dense");
@@ -574,11 +599,13 @@
       el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
     }
     selectCell(cell);
-    const maxVal =
+    const cellCount = state.square.size * state.square.size;
+    const range =
       state.mode === "price"
-        ? state.square.begin + (state.square.size * state.square.size - 1) * state.square.step
-        : state.square.size * state.square.size;
-    const minVal = state.mode === "price" ? state.square.begin : 1;
+        ? GannSquare.priceRange(state.square.begin, state.square.step, cellCount)
+        : { min: 1, max: cellCount };
+    const minVal = range.min;
+    const maxVal = range.max;
     const outOfRange = raw < minVal || raw > maxVal;
     if (state.mode === "price") {
       els.lookupHint.textContent = outOfRange

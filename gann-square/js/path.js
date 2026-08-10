@@ -284,9 +284,9 @@
   }
 
   function minRingsForValue(begin, step, value) {
-    if (!Number.isFinite(value) || step <= 0) return 3;
+    if (!Number.isFinite(value) || step === 0) return 3;
     const index = Math.floor((value - begin) / step) + 1;
-    if (index <= 1) return 1;
+    if (index < 1) return 1;
     const size = Math.ceil(Math.sqrt(index));
     const odd = size % 2 === 1 ? size : size + 1;
     return Math.max(3, Math.ceil(odd / 2));

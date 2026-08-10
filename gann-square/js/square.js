@@ -256,6 +256,24 @@
     return "other";
   }
 
+  /** @returns {{ min:number, max:number }} */
+  function priceRange(begin, step, cellCount) {
+    const endVal = begin + (cellCount - 1) * step;
+    return { min: Math.min(begin, endVal), max: Math.max(begin, endVal) };
+  }
+
+  /** Largest ring count with no negative outer prices (negative step only). */
+  function maxRingsWithoutNegative(begin, step) {
+    if (!Number.isFinite(begin) || !Number.isFinite(step) || step >= 0) return null;
+    const absStep = Math.abs(step);
+    if (absStep === 0 || begin <= 0) return 1;
+    const maxCells = Math.floor(begin / absStep) + 1;
+    let size = Math.floor(Math.sqrt(maxCells));
+    if (size % 2 === 0) size -= 1;
+    if (size < 1) return 1;
+    return (size + 1) / 2;
+  }
+
   function findNearest(square, target) {
     let best = null;
     let bestDiff = Infinity;
@@ -337,6 +355,8 @@
     formatNumber,
     formatDate,
     almostEqual,
+    priceRange,
+    maxRingsWithoutNegative,
     ANGLE_LABELS,
   };
 })(window);

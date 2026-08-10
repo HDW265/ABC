@@ -56,11 +56,12 @@
         <label class="field">
           <span>步长 Step</span>
           <div class="step-row">
-            <input id="step" type="number" inputmode="decimal" value="1" step="any" min="0" />
+            <input id="step" type="number" inputmode="decimal" value="1" step="any" />
             <div class="chip-row" id="stepChips">
               <button type="button" data-step="0.01">0.01</button>
               <button type="button" data-step="0.1">0.1</button>
               <button type="button" data-step="1" class="on">1</button>
+              <button type="button" data-step="-1">−1</button>
               <button type="button" data-step="5">5</button>
               <button type="button" data-step="10">10</button>
             </div>
@@ -94,6 +95,7 @@
           </div>
         </label>
         <p class="hint" id="sizeHint">边长 11 × 11 · 共 121 格</p>
+        <p class="hint perf-hint hidden" id="stepRangeHint"></p>
         <p class="hint perf-hint hidden" id="perfHint"></p>
       </section>
 
