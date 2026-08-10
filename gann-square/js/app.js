@@ -62,6 +62,7 @@
     pathProjectLines: $("pathProjectLines"),
     pathSegments: $("pathSegments"),
     pathAutoExpand: $("pathAutoExpand"),
+    pathAutoSegments: $("pathAutoSegments"),
     pathCollapsePanels: $("pathCollapsePanels"),
     btnPathRun: $("btnPathRun"),
     btnPathClear: $("btnPathClear"),
@@ -1214,7 +1215,28 @@
     const mode = pathOutputMode();
     const wantLine = mode === "line" || mode === "both";
     const wantProject = mode === "project" || mode === "both";
-    const segments = Math.max(2, Math.min(8, Number(els.pathSegments?.value) || 4));
+    const userSegments = Math.max(2, Math.min(12, Number(els.pathSegments?.value) || 4));
+    let segments = userSegments;
+    let segmentAdaptNote = null;
+
+    if (wantProject && els.pathAutoSegments?.checked) {
+      const resolved = GannProject.resolveProjectionSegments(state.square, {
+        start,
+        target,
+        direction: sync.direction,
+        userSegments,
+      });
+      segments = resolved.effective;
+      if (resolved.adapted) {
+        els.pathSegments.value = String(segments);
+        segmentAdaptNote = `推演段数已由 ${userSegments} 自动调整为 ${segments}`;
+      }
+      if (!resolved.complete) {
+        segmentAdaptNote = segmentAdaptNote
+          ? `${segmentAdaptNote}；已扩至 ${segments} 段仍未触及目标侧，请增大环数`
+          : `推演已扩至 ${segments} 段仍未触及目标侧，请增大环数`;
+      }
+    }
 
     clearTimeout(state.pathDrawTimer);
     state.pathResult = null;
@@ -1291,7 +1313,10 @@
 
     const toastBits = [];
     if (wantLine) toastBits.push(state.pathResult?.reached ? "单线完成" : "单线结束");
-    if (wantProject) toastBits.push("推演完成");
+    if (wantProject) {
+      if (segmentAdaptNote) toastBits.push(segmentAdaptNote);
+      else toastBits.push("推演完成");
+    }
     showToast(toastBits.join(" · ") || "完成");
   }
 

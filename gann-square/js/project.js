@@ -160,6 +160,62 @@
     return `${templateCount}通道明细`;
   }
 
+  const PROJ_SEG_MIN = 2;
+  const PROJ_SEG_MAX = 12;
+
+  /** True when secret display prices include at least one on the target side. */
+  function isProjectionComplete(display, target, direction) {
+    const all = display.flat().filter((p) => Number.isFinite(p));
+    if (!all.length || !Number.isFinite(target)) return false;
+    if (direction === "up") return all.some((p) => p >= target);
+    return all.some((p) => p <= target);
+  }
+
+  /**
+   * Smallest segment count (2…maxSeg) whose display touches the target side.
+   */
+  function minSegmentsForProjection(square, options, maxSeg = PROJ_SEG_MAX) {
+    const startRaw = Number(options.start);
+    const targetRaw = Number(options.target);
+    const direction = options.direction === "up" ? "up" : "down";
+    const cap = Math.max(PROJ_SEG_MIN, Math.min(PROJ_SEG_MAX, Number(maxSeg) || PROJ_SEG_MAX));
+
+    for (let s = PROJ_SEG_MIN; s <= cap; s += 1) {
+      const r = runProjection(square, {
+        start: startRaw,
+        target: targetRaw,
+        direction,
+        segments: s,
+      });
+      if (r.ok && isProjectionComplete(r.display, targetRaw, direction)) {
+        return { segments: s, complete: true };
+      }
+    }
+    return { segments: cap, complete: false };
+  }
+
+  /** effective = max(userSegments, minNeeded) when auto; honors user raising segments. */
+  function resolveProjectionSegments(square, options) {
+    const userSegments = Math.max(
+      PROJ_SEG_MIN,
+      Math.min(PROJ_SEG_MAX, Number(options.userSegments) || 4)
+    );
+    const { segments: minNeeded, complete: minComplete } = minSegmentsForProjection(square, {
+      start: options.start,
+      target: options.target,
+      direction: options.direction,
+    });
+    const effective = Math.max(userSegments, minNeeded);
+    const complete = minComplete || effective > minNeeded;
+    return {
+      effective,
+      userSegments,
+      minNeeded,
+      complete,
+      adapted: effective > userSegments,
+    };
+  }
+
   /**
    * Secret projection + channel table.
    */
@@ -167,7 +223,10 @@
     const startRaw = Number(options.start);
     const targetRaw = Number(options.target);
     const direction = options.direction === "up" ? "up" : "down";
-    const segments = Math.max(1, Math.min(12, Number(options.segments) || 4));
+    const segments = Math.max(
+      PROJ_SEG_MIN,
+      Math.min(PROJ_SEG_MAX, Number(options.segments) || 4)
+    );
 
     if (!Number.isFinite(startRaw) || !Number.isFinite(targetRaw)) {
       return { ok: false, message: "请输入有效起点与目标价" };
@@ -245,6 +304,9 @@
 
   global.GannProject = {
     runProjection,
+    resolveProjectionSegments,
+    minSegmentsForProjection,
+    isProjectionComplete,
     templatesForSegments,
     fillTemplate,
     pickDisplay,
@@ -252,5 +314,7 @@
     step180,
     angleStep,
     channelTitle,
+    PROJ_SEG_MIN,
+    PROJ_SEG_MAX,
   };
 })(window);
