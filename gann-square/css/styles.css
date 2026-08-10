@@ -725,10 +725,22 @@ input[type="range"] {
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.project-chip:hover,
-.project-chip.active {
+.project-chip:hover {
   background: rgba(184, 101, 47, 0.12);
   border-color: rgba(184, 101, 47, 0.45);
+}
+
+.project-chip.active {
+  background: var(--copper);
+  border-color: var(--copper-deep);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 10px rgba(184, 101, 47, 0.38);
+}
+
+.project-chip.active .chip-seg {
+  color: rgba(255, 252, 248, 0.88);
+  font-weight: 600;
 }
 
 .project-chip .chip-seg {
@@ -761,6 +773,50 @@ input[type="range"] {
   fill: none;
   stroke: #8a4b2a;
   stroke-width: 1.6;
+}
+
+.path-overlay .project-mark.active-ring,
+.path-overlay .lookup-mark.active-ring {
+  fill: none;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 5px rgba(184, 101, 47, 0.45));
+}
+
+.path-overlay .project-mark.active-ring {
+  stroke: var(--copper);
+}
+
+.path-overlay .lookup-mark.active-ring {
+  stroke: var(--teal);
+  filter: drop-shadow(0 0 5px rgba(31, 111, 106, 0.45));
+}
+
+.path-overlay .project-mark.active-fill {
+  fill: rgba(184, 101, 47, 0.22);
+  stroke: var(--copper-deep);
+  stroke-width: 2;
+}
+
+.path-overlay .lookup-mark.active-fill {
+  fill: rgba(31, 111, 106, 0.22);
+  stroke: var(--teal);
+  stroke-width: 2;
+}
+
+.path-overlay .locate-mark-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.path-overlay .locate-mark-label.project {
+  fill: var(--copper-deep);
+}
+
+.path-overlay .locate-mark-label.lookup {
+  fill: #0f5c58;
 }
 
 .path-overlay .project-channel-line {
@@ -932,10 +988,78 @@ input[type="range"] {
   box-shadow: 0 6px 16px rgba(20, 32, 40, 0.16);
 }
 
-.cell.selected {
-  outline: 2px solid var(--copper);
-  box-shadow: 0 0 0 4px rgba(184, 101, 47, 0.2);
-  z-index: 3;
+.cell.selected:not(.locate-project):not(.locate-lookup) {
+  outline: 1.5px solid rgba(184, 101, 47, 0.55);
+  box-shadow: none;
+  z-index: 2;
+}
+
+.cell.locate-project,
+.cell.locate-lookup {
+  z-index: 5;
+  transform: scale(1.1);
+  font-weight: 700;
+}
+
+.cell.locate-project {
+  outline: 3px solid var(--copper);
+  box-shadow:
+    0 0 0 6px rgba(184, 101, 47, 0.32),
+    0 0 18px rgba(184, 101, 47, 0.42);
+}
+
+.cell.locate-lookup {
+  outline: 3px solid var(--teal);
+  box-shadow:
+    0 0 0 6px rgba(31, 111, 106, 0.32),
+    0 0 18px rgba(31, 111, 106, 0.42);
+}
+
+.cell.locate-pulse.locate-project {
+  animation: locate-pulse-project 1.2s ease 2;
+}
+
+.cell.locate-pulse.locate-lookup {
+  animation: locate-pulse-lookup 1.2s ease 2;
+}
+
+@keyframes locate-pulse-project {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 6px rgba(184, 101, 47, 0.32),
+      0 0 18px rgba(184, 101, 47, 0.42);
+  }
+  50% {
+    box-shadow:
+      0 0 0 10px rgba(184, 101, 47, 0.16),
+      0 0 24px rgba(184, 101, 47, 0.55);
+  }
+}
+
+@keyframes locate-pulse-lookup {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 6px rgba(31, 111, 106, 0.32),
+      0 0 18px rgba(31, 111, 106, 0.42);
+  }
+  50% {
+    box-shadow:
+      0 0 0 10px rgba(31, 111, 106, 0.16),
+      0 0 24px rgba(31, 111, 106, 0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell.locate-pulse.locate-project,
+  .cell.locate-pulse.locate-lookup {
+    animation: none;
+  }
+}
+
+.square.focus-locate .cell:not(.locate-project):not(.locate-lookup) {
+  filter: saturate(0.28) opacity(0.4);
 }
 
 .cell.lookup-hit {

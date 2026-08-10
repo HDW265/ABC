@@ -117,6 +117,8 @@
     pathActiveStep: null,
     pathDrawTimer: null,
     projectActivePrice: null,
+    locateKey: null,
+    locateMode: null,
   };
 
   function loadPrefs() {
@@ -502,16 +504,18 @@
 
         const key = cellKey(cell);
         if (state.selectedKey === key) btn.classList.add("selected");
-        if (state.lookupKey === key) btn.classList.add("lookup-hit");
-
-        // Dim non-highlighted cells when any highlight filter is conceptually "focus mode"
-        // Keep subtle: only dim if squares-only emphasis? Skip heavy dimming for clarity.
+        if (state.locateKey === key) {
+          btn.classList.add(state.locateMode === "lookup" ? "locate-lookup" : "locate-project");
+        }
 
         btn.addEventListener("click", () => selectCell(cell));
         frag.appendChild(btn);
       }
     }
     els.square.appendChild(frag);
+
+    if (state.locateKey) els.square.classList.add("focus-locate");
+    else els.square.classList.remove("focus-locate");
 
     // optional visual offset via CSS translate on scaler
     const ox = params.colOffset * 4;
@@ -533,8 +537,60 @@
     });
   }
 
-  function selectCell(cell) {
-    state.selectedKey = cellKey(cell);
+  function clearLocateHighlight() {
+    state.locateKey = null;
+    state.locateMode = null;
+    if (els.square) els.square.classList.remove("focus-locate");
+    document.querySelectorAll(".cell.locate-project, .cell.locate-lookup").forEach((el) => {
+      el.classList.remove("locate-project", "locate-lookup", "locate-pulse");
+    });
+  }
+
+  function applyLocateHighlight(cell) {
+    if (!cell || !els.square) return;
+    const key = cellKey(cell);
+    document.querySelectorAll(".cell.locate-project, .cell.locate-lookup").forEach((el) => {
+      el.classList.remove("locate-project", "locate-lookup", "locate-pulse");
+    });
+    state.locateKey = key;
+    els.square.classList.add("focus-locate");
+    const el = els.square.querySelector(`[data-row="${cell.row}"][data-col="${cell.col}"]`);
+    if (el) {
+      const cls = state.locateMode === "lookup" ? "locate-lookup" : "locate-project";
+      el.classList.add(cls, "locate-pulse");
+    }
+  }
+
+  function locateCell(cell, mode, options = {}) {
+    if (!cell) return;
+    state.locateMode = mode === "lookup" ? "lookup" : "project";
+    if (state.locateMode === "lookup") {
+      state.projectActivePrice = null;
+      if (state.projectResult?.ok) updateProjectPanel(state.projectResult);
+    }
+    applyLocateHighlight(cell);
+    selectCell(cell, { keepLocate: true });
+    if (options.scroll !== false) {
+      const el = els.square.querySelector(`[data-row="${cell.row}"][data-col="${cell.col}"]`);
+      if (el) el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+    }
+    redrawPathAndProject();
+  }
+
+  function projectSegForPrice(proj, price) {
+    if (!proj || !proj.display) return null;
+    for (let i = 0; i < proj.display.length; i += 1) {
+      if (proj.display[i].some((p) => GannSquare.almostEqual(p, price))) return i + 1;
+    }
+    return null;
+  }
+
+  function selectCell(cell, options = {}) {
+    const key = cellKey(cell);
+    if (!options.keepLocate && state.locateKey && state.locateKey !== key) {
+      clearLocateHighlight();
+    }
+    state.selectedKey = key;
     document.querySelectorAll(".cell.selected").forEach((el) => el.classList.remove("selected"));
     const el = els.square.querySelector(`[data-row="${cell.row}"][data-col="${cell.col}"]`);
     if (el) el.classList.add("selected");
@@ -593,13 +649,7 @@
     const { cell, diff } = GannSquare.findNearest(state.square, raw);
     if (!cell) return;
     state.lookupKey = cellKey(cell);
-    document.querySelectorAll(".cell.lookup-hit").forEach((el) => el.classList.remove("lookup-hit"));
-    const el = els.square.querySelector(`[data-row="${cell.row}"][data-col="${cell.col}"]`);
-    if (el) {
-      el.classList.add("lookup-hit");
-      el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
-    }
-    selectCell(cell);
+    locateCell(cell, "lookup");
     const cellCount = state.square.size * state.square.size;
     const range =
       state.mode === "price"
@@ -986,6 +1036,7 @@
     }
 
     drawProjectOverlay();
+    drawLocateOverlay();
   }
 
   function drawProjectOverlay() {
@@ -1028,17 +1079,74 @@
         if (!hit.cell) return;
         const p = cellCenter(hit.cell.row, hit.cell.col);
         if (!p) return;
-        const mark = document.createElementNS(ns, "circle");
-        mark.setAttribute("cx", p.x);
-        mark.setAttribute("cy", p.y);
-        mark.setAttribute("r", Math.max(5, p.r * 0.85));
-        mark.setAttribute("class", "project-mark");
-        if (state.projectActivePrice === price) {
-          mark.setAttribute("stroke-width", "2.4");
+        const isActive = state.projectActivePrice === price;
+        if (isActive) {
+          const outer = document.createElementNS(ns, "circle");
+          outer.setAttribute("cx", p.x);
+          outer.setAttribute("cy", p.y);
+          outer.setAttribute("r", Math.max(10, p.r * 1.55));
+          outer.setAttribute("class", "project-mark active-ring");
+          els.pathOverlay.appendChild(outer);
+
+          const inner = document.createElementNS(ns, "circle");
+          inner.setAttribute("cx", p.x);
+          inner.setAttribute("cy", p.y);
+          inner.setAttribute("r", Math.max(6, p.r * 0.95));
+          inner.setAttribute("class", "project-mark active-fill");
+          els.pathOverlay.appendChild(inner);
+
+          const seg = projectSegForPrice(proj, price);
+          const label = document.createElementNS(ns, "text");
+          label.setAttribute("x", p.x);
+          label.setAttribute("y", p.y - Math.max(10, p.r * 1.55) - 4);
+          label.setAttribute("class", "locate-mark-label project");
+          label.textContent = seg
+            ? `${GannSquare.formatNumber(price)} · 段${seg}`
+            : GannSquare.formatNumber(price);
+          els.pathOverlay.appendChild(label);
+        } else {
+          const mark = document.createElementNS(ns, "circle");
+          mark.setAttribute("cx", p.x);
+          mark.setAttribute("cy", p.y);
+          mark.setAttribute("r", Math.max(5, p.r * 0.85));
+          mark.setAttribute("class", "project-mark");
+          els.pathOverlay.appendChild(mark);
         }
-        els.pathOverlay.appendChild(mark);
       });
     }
+  }
+
+  function drawLocateOverlay() {
+    if (!state.locateKey || state.locateMode !== "lookup" || !els.pathOverlay) return;
+    const sized = preparePathOverlaySize();
+    if (!sized) return;
+    const [sr, sc] = state.locateKey.split(":").map(Number);
+    const cell = state.square?.meta[sr]?.[sc];
+    if (!cell) return;
+    const p = cellCenter(sr, sc);
+    if (!p) return;
+    const ns = sized.ns;
+
+    const outer = document.createElementNS(ns, "circle");
+    outer.setAttribute("cx", p.x);
+    outer.setAttribute("cy", p.y);
+    outer.setAttribute("r", Math.max(10, p.r * 1.55));
+    outer.setAttribute("class", "lookup-mark active-ring");
+    els.pathOverlay.appendChild(outer);
+
+    const inner = document.createElementNS(ns, "circle");
+    inner.setAttribute("cx", p.x);
+    inner.setAttribute("cy", p.y);
+    inner.setAttribute("r", Math.max(6, p.r * 0.95));
+    inner.setAttribute("class", "lookup-mark active-fill");
+    els.pathOverlay.appendChild(inner);
+
+    const label = document.createElementNS(ns, "text");
+    label.setAttribute("x", p.x);
+    label.setAttribute("y", p.y - Math.max(10, p.r * 1.55) - 4);
+    label.setAttribute("class", "locate-mark-label lookup");
+    label.textContent = `${GannSquare.formatNumber(cell.value)} · 反查`;
+    els.pathOverlay.appendChild(label);
   }
 
   function updateProjectPanel(proj) {
@@ -1070,14 +1178,12 @@
           state.projectActivePrice = price;
           const hit = GannSquare.findNearest(state.square, price);
           if (hit.cell) {
-            selectCell(hit.cell);
-            const el = els.square.querySelector(
-              `[data-row="${hit.cell.row}"][data-col="${hit.cell.col}"]`
-            );
-            if (el) el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+            locateCell(hit.cell, "project");
+            updateProjectPanel(state.projectResult);
+          } else {
+            updateProjectPanel(state.projectResult);
+            redrawPathAndProject();
           }
-          updateProjectPanel(state.projectResult);
-          redrawPathAndProject();
         });
         els.projectChips.appendChild(btn);
       });
@@ -1112,6 +1218,7 @@
       clearPathOverlay();
       preparePathOverlaySize();
       drawProjectOverlay();
+      drawLocateOverlay();
     }
   }
 
@@ -1243,6 +1350,7 @@
     state.projectResult = null;
     state.pathActiveStep = null;
     state.projectActivePrice = null;
+    clearLocateHighlight();
     clearPathOverlay();
     updatePathTable(null);
     updateProjectPanel(null);
@@ -1343,6 +1451,7 @@
     state.projectResult = null;
     state.pathActiveStep = null;
     state.projectActivePrice = null;
+    clearLocateHighlight();
     clearPathOverlay();
     updatePathTable(null);
     updateProjectPanel(null);
@@ -1396,6 +1505,7 @@
     els.preset.value = "classic";
     state.selectedKey = null;
     state.lookupKey = null;
+    clearLocateHighlight();
     state.zoom = 1;
     els.emptyReadout.classList.remove("hidden");
     els.readoutBody.classList.add("hidden");
