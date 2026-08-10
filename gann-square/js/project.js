@@ -5,6 +5,10 @@
  * Segment n (1-based) candidates:
  *   180°(all of segment n-2) ∪ 90°(all of segment n-1)
  *   segment 1 = 90°(start) only
+ * Scheme 1 (bounce collapse): if 180°(p) bounces to 45° and lands on the
+ *   same price as 90°(p), exclude that 180° hit from the union.
+ * Scheme 2 (cross-segment): drop prices already shown; downward new prices
+ *   must be strictly below the display frontier (upward: strictly above).
  * Option B: when segment n-1 has ≥3 prices, drop 90°(extreme of n-1)
  *   if that hit is not also in the 180° group (excludes 822→804 on 922→807).
  * Display: if all on near side of target → min+max; else keep far-side all
@@ -15,6 +19,10 @@
 (function (global) {
   function uniqueSorted(arr) {
     return Array.from(new Set(arr.filter((v) => Number.isFinite(v)))).sort((a, b) => a - b);
+  }
+
+  function almostEqualPrice(a, b) {
+    return Math.abs(a - b) <= 1e-9;
   }
 
   function angleStep(square, price, plannedKind, direction) {
@@ -44,6 +52,39 @@
 
   function step180(square, price, direction) {
     return angleStep(square, price, "180", direction);
+  }
+
+  /**
+   * Scheme 1: when planned 180° bounces onto the same land as 90°(p),
+   * treat it as collapsed and omit from the 180° union.
+   */
+  function step180ForUnion(square, price, direction) {
+    const s180 = step180(square, price, direction);
+    if (!s180) return null;
+    if (s180.bounced && s180.used === "45") {
+      const s90 = step90(square, price, direction);
+      if (s90 && almostEqualPrice(s90.price, s180.price)) return null;
+    }
+    return s180;
+  }
+
+  /** Scheme 2: drop already-shown prices and frontier reversals. */
+  function filterMonotone(working, direction, seenDisplay, frontier) {
+    let out = working.filter((p) => !seenDisplay.has(p));
+    if (Number.isFinite(frontier)) {
+      if (direction === "down") out = out.filter((p) => p < frontier);
+      else out = out.filter((p) => p > frontier);
+    }
+    return out;
+  }
+
+  function updateFrontier(displayPrices, direction, frontier) {
+    if (!displayPrices.length) return frontier;
+    const edge =
+      direction === "down" ? Math.min(...displayPrices) : Math.max(...displayPrices);
+    if (!Number.isFinite(frontier)) return edge;
+    if (direction === "down") return Math.min(frontier, edge);
+    return Math.max(frontier, edge);
   }
 
   /** Ordered templates of 90/180 summing to segmentCount * 90. */
@@ -163,12 +204,24 @@
   const PROJ_SEG_MIN = 2;
   const PROJ_SEG_MAX = 12;
 
-  /** True when secret display prices include at least one on the target side. */
-  function isProjectionComplete(display, target, direction) {
+  /** True when secret display prices cover the target (side or closest-stop). */
+  function isProjectionComplete(display, target, direction, square) {
     const all = display.flat().filter((p) => Number.isFinite(p));
     if (!all.length || !Number.isFinite(target)) return false;
-    if (direction === "up") return all.some((p) => p >= target);
-    return all.some((p) => p <= target);
+    if (direction === "up") {
+      if (all.some((p) => p >= target)) return true;
+    } else if (all.some((p) => p <= target)) {
+      return true;
+    }
+    // Soft landing: frontier is already the closest structural step
+    // (next 90° would not get closer) — matches path closest-stop.
+    if (!square) return false;
+    const frontier = direction === "down" ? Math.min(...all) : Math.max(...all);
+    const next = step90(square, frontier, direction);
+    if (!next) return true;
+    const curDist = Math.abs(frontier - target);
+    const nextDist = Math.abs(next.price - target);
+    return nextDist >= curDist;
   }
 
   /**
@@ -187,7 +240,7 @@
         direction,
         segments: s,
       });
-      if (r.ok && isProjectionComplete(r.display, targetRaw, direction)) {
+      if (r.ok && isProjectionComplete(r.display, targetRaw, direction, square)) {
         return { segments: s, complete: true };
       }
     }
@@ -234,11 +287,15 @@
 
     const full = [];
     const display = [];
+    const seenDisplay = new Set();
+    let frontier = startRaw;
 
     const unit = Math.abs(Number(square.step)) || 1;
     const first = step90(square, startRaw, direction);
     full[0] = first ? [first.price] : [];
     display[0] = full[0].slice();
+    display[0].forEach((p) => seenDisplay.add(p));
+    frontier = updateFrontier(display[0], direction, frontier);
 
     for (let n = 1; n < segments; n += 1) {
       const prev2 = n === 1 ? [startRaw] : full[n - 2];
@@ -246,7 +303,7 @@
       const group1 = [];
       const group2 = [];
       prev2.forEach((p) => {
-        const s = step180(square, p, direction);
+        const s = step180ForUnion(square, p, direction);
         if (s) group1.push(s.price);
       });
       prev1.forEach((p) => {
@@ -265,8 +322,11 @@
         }
       }
 
+      working = filterMonotone(working, direction, seenDisplay, frontier);
       full[n] = working;
       display[n] = pickDisplay(working, targetRaw, direction, unit);
+      display[n].forEach((p) => seenDisplay.add(p));
+      frontier = updateFrontier(display[n], direction, frontier);
     }
 
     const templates = templatesForSegments(segments);
@@ -276,9 +336,9 @@
       cells: fillTemplate(square, startRaw, tpl, direction),
     }));
 
-    const secretParts = display.map((prices) =>
-      prices.map((p) => global.GannSquare.formatNumber(p)).join("、")
-    );
+    const secretParts = display
+      .map((prices) => prices.map((p) => global.GannSquare.formatNumber(p)).join("、"))
+      .filter((part) => part.length > 0);
     const secretLine = `${global.GannSquare.formatNumber(startRaw)} 推 ${global.GannSquare.formatNumber(targetRaw)} = ${secretParts.join(" — ")}`;
 
     const allDisplayPrices = uniqueSorted(display.flat());
@@ -312,6 +372,8 @@
     pickDisplay,
     step90,
     step180,
+    step180ForUnion,
+    filterMonotone,
     angleStep,
     channelTitle,
     PROJ_SEG_MIN,
