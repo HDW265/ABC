@@ -151,7 +151,7 @@
         </div>
         <label class="field">
           <span>推演段数</span>
-          <input id="pathSegments" type="number" min="2" max="8" value="4" step="1" />
+          <input id="pathSegments" type="number" min="2" max="12" value="4" step="1" />
         </label>
         <div class="field">
           <span>标注</span>
@@ -164,6 +164,7 @@
         </div>
         <div class="checks">
           <label><input type="checkbox" id="pathAutoExpand" checked /> 自动扩环以覆盖路径</label>
+          <label><input type="checkbox" id="pathAutoSegments" checked /> 自动适配推演段数</label>
           <label><input type="checkbox" id="pathCollapsePanels" checked /> 跑图时收起侧栏</label>
         </div>
         <div class="path-actions">
