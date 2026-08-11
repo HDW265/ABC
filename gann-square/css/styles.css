@@ -525,8 +525,9 @@ input[type="range"] {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.55rem;
   margin-bottom: 0.65rem;
+  flex-wrap: wrap;
 }
 
 .stage-title {
@@ -536,10 +537,150 @@ input[type="range"] {
   font-weight: 700;
 }
 
+.draw-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.35rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  flex: 1 1 auto;
+  justify-content: center;
+  min-width: 0;
+}
+
+.draw-toolbar.is-active {
+  border-color: var(--line);
+  background: rgba(255, 252, 248, 0.92);
+}
+
+.draw-toolbar-body {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.draw-toolbar.is-collapsed .draw-toolbar-body {
+  display: none;
+}
+
+.draw-sep {
+  width: 1px;
+  height: 1.1rem;
+  background: var(--line);
+  margin: 0 0.15rem;
+}
+
+.draw-tool.on,
+.draw-angle.on,
+#btnDrawToggle[aria-pressed="true"] {
+  background: var(--copper);
+  border-color: var(--copper-deep);
+  color: #fff;
+}
+
+.draw-ico {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.draw-style-wrap {
+  position: relative;
+}
+
+.draw-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 252, 248, 0.98);
+  box-shadow: var(--shadow);
+}
+
+.draw-popover button {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(20, 32, 40, 0.18);
+  padding: 0;
+  cursor: pointer;
+}
+
+.draw-popover button.on {
+  outline: 2px solid var(--copper);
+  outline-offset: 1px;
+}
+
+.draw-hud {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 6;
+  padding: 0.35rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 252, 248, 0.92);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+
+.draw-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 5;
+}
+
+.draw-overlay .draw-obj {
+  cursor: pointer;
+}
+
+.draw-overlay .draw-obj.selected {
+  filter: drop-shadow(0 0 3px rgba(184, 101, 47, 0.55));
+}
+
+.draw-overlay .draw-draft {
+  opacity: 0.85;
+}
+
+.draw-overlay .draw-preview.ok {
+  opacity: 0.7;
+}
+
+.draw-overlay .draw-preview.bad {
+  opacity: 0.35;
+  stroke: #b23a2f !important;
+}
+
+.square.draw-mode .cell.draw-forbidden {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.square.draw-mode .cell.draw-anchor {
+  outline: 2px solid var(--teal);
+  z-index: 3;
+}
+
 .zoom-controls {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  flex: 0 0 auto;
 }
 
 #zoomLabel {
