@@ -646,7 +646,7 @@ input[type="range"] {
 }
 
 .draw-overlay .draw-obj {
-  cursor: pointer;
+  /* hit-testing enabled per-element in JS for select/eraser */
 }
 
 .draw-overlay .draw-obj.selected {

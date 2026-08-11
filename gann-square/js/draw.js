@@ -268,30 +268,49 @@
     if (!sized) return;
     const ns = sized.ns;
     overlay.innerHTML = "";
-    overlay.style.pointerEvents = state.enabled ? "auto" : "none";
+    // Never block the grid: root stays none. Objects opt-in for select/eraser.
+    overlay.style.pointerEvents = "none";
+    const canHitObjs =
+      state.enabled && (state.tool === "select" || state.tool === "eraser");
 
-    const drawPolyline = (points, style, cls, id) => {
+    const drawPolyline = (points, style, cls, id, interactive) => {
       if (points.length < 2) return;
       const centers = points.map((p) => cellCenterEl(squareEl, stackEl, p.row, p.col));
       if (centers.some((c) => !c)) return;
+      const pts = centers.map((c) => `${c.x},${c.y}`).join(" ");
+      const dash = dashArray(style.dash, style.width);
+
+      if (interactive) {
+        const hit = document.createElementNS(ns, "polyline");
+        hit.setAttribute("points", pts);
+        hit.setAttribute("fill", "none");
+        hit.setAttribute("stroke", style.color);
+        hit.setAttribute("stroke-width", String(Math.max(12, style.width * 4)));
+        hit.setAttribute("stroke-opacity", "0.01");
+        hit.setAttribute("stroke-linecap", "round");
+        hit.setAttribute("stroke-linejoin", "round");
+        hit.setAttribute("class", cls);
+        hit.style.pointerEvents = "stroke";
+        hit.style.cursor = state.tool === "eraser" ? "crosshair" : "pointer";
+        if (id) hit.dataset.id = id;
+        overlay.appendChild(hit);
+      }
+
       const poly = document.createElementNS(ns, "polyline");
-      poly.setAttribute(
-        "points",
-        centers.map((c) => `${c.x},${c.y}`).join(" ")
-      );
+      poly.setAttribute("points", pts);
       poly.setAttribute("fill", "none");
       poly.setAttribute("stroke", style.color);
       poly.setAttribute("stroke-width", String(style.width));
       poly.setAttribute("stroke-linecap", "round");
       poly.setAttribute("stroke-linejoin", "round");
-      const dash = dashArray(style.dash, style.width);
       if (dash) poly.setAttribute("stroke-dasharray", dash);
       poly.setAttribute("class", cls);
+      poly.style.pointerEvents = "none";
       if (id) poly.dataset.id = id;
       overlay.appendChild(poly);
     };
 
-    const drawMarker = (pt, style, cls, id) => {
+    const drawMarker = (pt, style, cls, id, interactive) => {
       const c = cellCenterEl(squareEl, stackEl, pt.row, pt.col);
       if (!c) return;
       const circle = document.createElementNS(ns, "circle");
@@ -306,25 +325,28 @@
       );
       if (style.markerFill === "solid") circle.setAttribute("fill-opacity", "0.35");
       circle.setAttribute("class", cls);
+      circle.style.pointerEvents = interactive ? "all" : "none";
+      if (interactive) {
+        circle.style.cursor = state.tool === "eraser" ? "crosshair" : "pointer";
+      }
       if (id) circle.dataset.id = id;
       overlay.appendChild(circle);
     };
 
     state.objects.forEach((obj) => {
-      const selected = obj.id === state.selectedId;
-      const cls = selected ? "draw-obj selected" : "draw-obj";
+      const cls = obj.id === state.selectedId ? "draw-obj selected" : "draw-obj";
       if (obj.type === "marker") {
-        drawMarker(obj.points[0], obj.style, cls, obj.id);
+        drawMarker(obj.points[0], obj.style, cls, obj.id, canHitObjs);
       } else {
-        drawPolyline(obj.points, obj.style, cls, obj.id);
+        drawPolyline(obj.points, obj.style, cls, obj.id, canHitObjs);
       }
     });
 
     if (state.draft && state.draft.points.length) {
       if (state.draft.type === "marker") {
-        drawMarker(state.draft.points[0], state.draft.style, "draw-draft", null);
+        drawMarker(state.draft.points[0], state.draft.style, "draw-draft", null, false);
       } else {
-        drawPolyline(state.draft.points, state.draft.style, "draw-draft", null);
+        drawPolyline(state.draft.points, state.draft.style, "draw-draft", null, false);
         const last = state.draft.points[state.draft.points.length - 1];
         if (state.hoverCell && square) {
           const ok = isAllowedByAngle(square, last, state.hoverCell, state.angleMode);
@@ -346,6 +368,7 @@
               line.setAttribute("stroke", state.draft.style.color);
               line.setAttribute("stroke-width", String(state.draft.style.width));
               line.setAttribute("stroke-dasharray", "4 4");
+              line.style.pointerEvents = "none";
               overlay.appendChild(line);
             }
           }

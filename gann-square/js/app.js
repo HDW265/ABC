@@ -1395,7 +1395,11 @@
       GannDraw.save(state.draw);
       syncDrawToolbar();
       redrawDrawLayer();
-      showToast(state.draw.enabled ? "画笔已开启" : "画笔已关闭");
+      showToast(
+        state.draw.enabled
+          ? "画笔已开启：请在方阵格子上点击绘制"
+          : "画笔已关闭"
+      );
     });
 
     document.querySelectorAll("[data-draw-tool]").forEach((btn) => {
