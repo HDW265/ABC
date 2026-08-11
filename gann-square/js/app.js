@@ -82,6 +82,20 @@
     btnProjectCopy: $("btnProjectCopy"),
     resizeLeft: $("resizeLeft"),
     resizeRight: $("resizeRight"),
+    drawToolbar: $("drawToolbar"),
+    drawToolbarBody: $("drawToolbarBody"),
+    btnDrawToggle: $("btnDrawToggle"),
+    btnDrawAngle: $("btnDrawAngle"),
+    btnDrawColor: $("btnDrawColor"),
+    drawColorPop: $("drawColorPop"),
+    drawColorSwatch: $("drawColorSwatch"),
+    btnDrawDash: $("btnDrawDash"),
+    btnDrawWidth: $("btnDrawWidth"),
+    btnDrawUndo: $("btnDrawUndo"),
+    btnDrawClear: $("btnDrawClear"),
+    btnDrawCollapse: $("btnDrawCollapse"),
+    drawOverlay: $("drawOverlay"),
+    drawHud: $("drawHud"),
   };
 
   const STORAGE_KEY = "gann-square-ui-v1";
@@ -113,6 +127,7 @@
     projectActivePrice: null,
     locateKey: null,
     locateMode: null,
+    draw: GannDraw.createState(),
   };
 
   function loadPrefs() {
@@ -502,7 +517,16 @@
           btn.classList.add(state.locateMode === "lookup" ? "locate-lookup" : "locate-project");
         }
 
-        btn.addEventListener("click", () => selectCell(cell));
+        btn.addEventListener("click", (ev) => {
+          if (handleDrawCellClick(cell, ev)) return;
+          selectCell(cell);
+        });
+        btn.addEventListener("mouseenter", () => {
+          if (!state.draw.enabled || !state.draw.draft) return;
+          state.draw.hoverCell = cell;
+          redrawDrawLayer();
+          updateDrawAnchorHints();
+        });
         frag.appendChild(btn);
       }
     }
@@ -528,6 +552,7 @@
 
     requestAnimationFrame(() => {
       redrawPathAndProject();
+      redrawDrawLayer();
     });
   }
 
@@ -795,6 +820,10 @@
         ctx.font = `600 ${Math.max(9, Math.floor(cell * 0.22))}px "IBM Plex Mono", monospace`;
         ctx.fillText(`#${i}`, p.x, p.y);
       });
+    }
+
+    if (state.draw && state.draw.objects && state.draw.objects.length) {
+      GannDraw.paintToCanvas(ctx, state.draw, { pad, cell, gap });
     }
 
     const a = document.createElement("a");
@@ -1164,6 +1193,380 @@
       drawProjectOverlay();
       drawLocateOverlay();
     }
+    redrawDrawLayer();
+  }
+
+  function redrawDrawLayer() {
+    if (!els.drawOverlay || !state.square) return;
+    GannDraw.render(state.draw, {
+      overlay: els.drawOverlay,
+      squareEl: els.square,
+      stackEl: els.squareStack,
+      square: state.square,
+    });
+    updateDrawHud();
+  }
+
+  function updateDrawHud() {
+    if (!els.drawHud) return;
+    if (!state.draw.enabled) {
+      els.drawHud.classList.add("hidden");
+      return;
+    }
+    const toolNames = {
+      select: "选择",
+      line: "直线",
+      polyline: "折线",
+      marker: "圆标",
+      eraser: "橡皮",
+    };
+    const angle = GannDraw.ANGLE_LABEL[state.draw.angleMode] || state.draw.angleMode;
+    const n = state.draw.objects.length;
+    const draftNote = state.draw.draft
+      ? ` · 草稿${state.draw.draft.points.length}点`
+      : "";
+    els.drawHud.textContent = `${toolNames[state.draw.tool] || state.draw.tool} · ${angle} · ${state.draw.style.color} · ${n}条${draftNote}`;
+    els.drawHud.classList.remove("hidden");
+  }
+
+  function syncDrawToolbar() {
+    const d = state.draw;
+    if (els.btnDrawToggle) {
+      els.btnDrawToggle.setAttribute("aria-pressed", d.enabled ? "true" : "false");
+    }
+    if (els.drawToolbar) {
+      els.drawToolbar.classList.toggle("is-active", d.enabled);
+      els.drawToolbar.classList.toggle("is-collapsed", !d.toolbarExpanded);
+    }
+    if (els.btnDrawCollapse) {
+      els.btnDrawCollapse.textContent = d.toolbarExpanded ? "«" : "»";
+      els.btnDrawCollapse.title = d.toolbarExpanded ? "收缩工具条" : "展开工具条";
+    }
+    document.querySelectorAll("[data-draw-tool]").forEach((btn) => {
+      btn.classList.toggle("on", d.enabled && btn.dataset.drawTool === d.tool);
+    });
+    if (els.btnDrawAngle) {
+      els.btnDrawAngle.textContent = `∠${GannDraw.ANGLE_LABEL[d.angleMode] || d.angleMode}`;
+    }
+    if (els.drawColorSwatch) els.drawColorSwatch.setAttribute("fill", d.style.color);
+    if (els.btnDrawDash) {
+      els.btnDrawDash.textContent =
+        d.style.dash === "dash" ? "┅" : d.style.dash === "dot" ? "···" : "═";
+    }
+    if (els.btnDrawWidth) els.btnDrawWidth.textContent = String(d.style.width);
+    if (els.square) els.square.classList.toggle("draw-mode", d.enabled);
+    updateDrawHud();
+    updateDrawAnchorHints();
+  }
+
+  function updateDrawAnchorHints() {
+    if (!els.square || !state.square) return;
+    els.square.querySelectorAll(".cell.draw-forbidden, .cell.draw-anchor").forEach((el) => {
+      el.classList.remove("draw-forbidden", "draw-anchor");
+    });
+    if (!state.draw.enabled || !state.draw.draft || !state.draw.draft.points.length) return;
+    if (state.draw.tool !== "line" && state.draw.tool !== "polyline") return;
+    const last = state.draw.draft.points[state.draw.draft.points.length - 1];
+    const anchor = els.square.querySelector(`[data-row="${last.row}"][data-col="${last.col}"]`);
+    if (anchor) anchor.classList.add("draw-anchor");
+    if (state.draw.angleMode === "free") return;
+    const size = state.square.size;
+    for (let r = 0; r < size; r += 1) {
+      for (let c = 0; c < size; c += 1) {
+        if (r === last.row && c === last.col) continue;
+        const cell = state.square.meta[r][c];
+        if (GannDraw.isAllowedByAngle(state.square, last, cell, state.draw.angleMode)) continue;
+        const el = els.square.querySelector(`[data-row="${r}"][data-col="${c}"]`);
+        if (el) el.classList.add("draw-forbidden");
+      }
+    }
+  }
+
+  function finishDrawDraft(announce) {
+    const obj = GannDraw.commitDraft(state.draw);
+    if (obj) {
+      GannDraw.save(state.draw);
+      if (announce) showToast("已完成一段折线");
+    }
+    redrawDrawLayer();
+    syncDrawToolbar();
+  }
+
+  function handleDrawCellClick(cell, ev) {
+    if (!state.draw.enabled) return false;
+    const tool = state.draw.tool;
+
+    if (tool === "select") {
+      state.draw.selectedId = null;
+      selectCell(cell);
+      redrawDrawLayer();
+      return true;
+    }
+
+    if (tool === "eraser") {
+      // Prefer object under cursor via overlay; cell click clears selection only
+      if (state.draw.selectedId) {
+        GannDraw.deleteSelected(state.draw);
+        GannDraw.save(state.draw);
+        showToast("已删除");
+        redrawDrawLayer();
+        return true;
+      }
+      return true;
+    }
+
+    if (tool === "marker") {
+      GannDraw.addMarker(state.draw, cell);
+      GannDraw.save(state.draw);
+      selectCell(cell, { keepLocate: true });
+      redrawDrawLayer();
+      syncDrawToolbar();
+      showToast(`圆标 ${cell.display}`);
+      return true;
+    }
+
+    if (tool === "line" || tool === "polyline") {
+      if (ev && ev.detail > 1 && tool === "polyline" && state.draw.draft) {
+        finishDrawDraft(true);
+        return true;
+      }
+      if (!state.draw.draft) {
+        GannDraw.beginDraft(state.draw, cell, tool);
+        selectCell(cell, { keepLocate: true });
+        redrawDrawLayer();
+        syncDrawToolbar();
+        showToast(tool === "line" ? "直线：再点终点" : "折线：继续点格，双击结束");
+        return true;
+      }
+      const res = GannDraw.addPointToDraft(state.draw, state.square, cell);
+      if (!res.ok) {
+        if (res.reason === "angle") showToast(`当前角度 ${GannDraw.ANGLE_LABEL[state.draw.angleMode]} 不允许该落点`);
+        return true;
+      }
+      selectCell(cell, { keepLocate: true });
+      if (tool === "line") {
+        finishDrawDraft(false);
+        showToast("直线已绘制");
+      } else {
+        GannDraw.save(state.draw);
+        redrawDrawLayer();
+        syncDrawToolbar();
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function buildColorPopover() {
+    if (!els.drawColorPop) return;
+    els.drawColorPop.innerHTML = "";
+    GannDraw.COLORS.forEach((color) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.style.background = color;
+      btn.title = color;
+      if (color === state.draw.style.color) btn.classList.add("on");
+      btn.addEventListener("click", () => {
+        state.draw.style.color = color;
+        els.drawColorPop.classList.add("hidden");
+        GannDraw.save(state.draw);
+        syncDrawToolbar();
+        redrawDrawLayer();
+      });
+      els.drawColorPop.appendChild(btn);
+    });
+  }
+
+  function bindDrawUi() {
+    if (!els.btnDrawToggle) return;
+    GannDraw.loadInto(state.draw);
+    buildColorPopover();
+    syncDrawToolbar();
+
+    els.btnDrawToggle.addEventListener("click", () => {
+      state.draw.enabled = !state.draw.enabled;
+      if (!state.draw.enabled) {
+        state.draw.draft = null;
+        state.draw.hoverCell = null;
+        if (els.drawColorPop) els.drawColorPop.classList.add("hidden");
+      } else if (!state.draw.toolbarExpanded) {
+        state.draw.toolbarExpanded = true;
+      }
+      GannDraw.save(state.draw);
+      syncDrawToolbar();
+      redrawDrawLayer();
+      showToast(state.draw.enabled ? "画笔已开启" : "画笔已关闭");
+    });
+
+    document.querySelectorAll("[data-draw-tool]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (!state.draw.enabled) {
+          state.draw.enabled = true;
+        }
+        if (state.draw.draft && state.draw.tool === "polyline") finishDrawDraft(true);
+        const next = btn.dataset.drawTool;
+        if (next === "marker" && state.draw.tool === "marker") {
+          state.draw.style.markerFill =
+            state.draw.style.markerFill === "solid" ? "none" : "solid";
+          showToast(
+            state.draw.style.markerFill === "solid" ? "圆标：半透明填充" : "圆标：空心"
+          );
+        }
+        state.draw.tool = next;
+        state.draw.draft = null;
+        GannDraw.save(state.draw);
+        syncDrawToolbar();
+        redrawDrawLayer();
+      });
+    });
+
+    els.btnDrawAngle.addEventListener("click", () => {
+      state.draw.angleMode = GannDraw.cycleAngle(state.draw.angleMode);
+      GannDraw.save(state.draw);
+      syncDrawToolbar();
+      redrawDrawLayer();
+      showToast(`画线角度：${GannDraw.ANGLE_LABEL[state.draw.angleMode]}`);
+    });
+
+    els.btnDrawColor.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      buildColorPopover();
+      els.drawColorPop.classList.toggle("hidden");
+    });
+
+    els.btnDrawDash.addEventListener("click", () => {
+      const order = ["solid", "dash", "dot"];
+      const i = order.indexOf(state.draw.style.dash);
+      state.draw.style.dash = order[(i + 1) % order.length];
+      GannDraw.save(state.draw);
+      syncDrawToolbar();
+      redrawDrawLayer();
+    });
+
+    els.btnDrawWidth.addEventListener("click", () => {
+      const order = [1, 2, 3, 4];
+      const i = order.indexOf(state.draw.style.width);
+      state.draw.style.width = order[(i + 1) % order.length];
+      GannDraw.save(state.draw);
+      syncDrawToolbar();
+      redrawDrawLayer();
+    });
+
+    els.btnDrawUndo.addEventListener("click", () => {
+      if (state.draw.draft) {
+        state.draw.draft = null;
+        redrawDrawLayer();
+        syncDrawToolbar();
+        showToast("已取消草稿");
+        return;
+      }
+      if (GannDraw.undo(state.draw)) {
+        GannDraw.save(state.draw);
+        redrawDrawLayer();
+        syncDrawToolbar();
+        showToast("已撤销");
+      }
+    });
+
+    els.btnDrawClear.addEventListener("click", () => {
+      if (GannDraw.clearAll(state.draw)) {
+        GannDraw.save(state.draw);
+        redrawDrawLayer();
+        syncDrawToolbar();
+        showToast("批注已清空");
+      }
+    });
+
+    els.btnDrawCollapse.addEventListener("click", () => {
+      state.draw.toolbarExpanded = !state.draw.toolbarExpanded;
+      GannDraw.save(state.draw);
+      syncDrawToolbar();
+    });
+
+    if (els.drawOverlay) {
+      els.drawOverlay.addEventListener("click", (ev) => {
+        if (!state.draw.enabled) return;
+        const target = ev.target.closest("[data-id]");
+        if (!target) return;
+        const id = target.dataset.id;
+        if (state.draw.tool === "eraser") {
+          GannDraw.deleteObject(state.draw, id);
+          GannDraw.save(state.draw);
+          showToast("已删除");
+          redrawDrawLayer();
+          return;
+        }
+        state.draw.tool = "select";
+        state.draw.selectedId = id;
+        syncDrawToolbar();
+        redrawDrawLayer();
+      });
+    }
+
+    document.addEventListener("keydown", (ev) => {
+      if (ev.target && ["INPUT", "TEXTAREA", "SELECT"].includes(ev.target.tagName)) return;
+      if (ev.key === "Escape") {
+        if (state.draw.draft) {
+          state.draw.draft = null;
+          redrawDrawLayer();
+          syncDrawToolbar();
+          showToast("已取消草稿");
+          ev.preventDefault();
+          return;
+        }
+        if (state.draw.enabled) {
+          state.draw.enabled = false;
+          GannDraw.save(state.draw);
+          syncDrawToolbar();
+          redrawDrawLayer();
+          showToast("画笔已关闭");
+          ev.preventDefault();
+        }
+        return;
+      }
+      if (!state.draw.enabled && ev.key.toLowerCase() !== "d") return;
+      if (ev.key.toLowerCase() === "d" && !ev.metaKey && !ev.ctrlKey) {
+        state.draw.enabled = !state.draw.enabled;
+        GannDraw.save(state.draw);
+        syncDrawToolbar();
+        redrawDrawLayer();
+        showToast(state.draw.enabled ? "画笔已开启" : "画笔已关闭");
+        ev.preventDefault();
+        return;
+      }
+      if (!state.draw.enabled) return;
+      if (ev.key.toLowerCase() === "a") {
+        state.draw.angleMode = GannDraw.cycleAngle(state.draw.angleMode);
+        GannDraw.save(state.draw);
+        syncDrawToolbar();
+        redrawDrawLayer();
+        showToast(`画线角度：${GannDraw.ANGLE_LABEL[state.draw.angleMode]}`);
+        ev.preventDefault();
+      } else if (ev.key === "Enter" && state.draw.draft && state.draw.tool === "polyline") {
+        finishDrawDraft(true);
+        ev.preventDefault();
+      } else if ((ev.key === "Delete" || ev.key === "Backspace") && state.draw.selectedId) {
+        GannDraw.deleteSelected(state.draw);
+        GannDraw.save(state.draw);
+        redrawDrawLayer();
+        showToast("已删除");
+        ev.preventDefault();
+      } else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") {
+        if (GannDraw.undo(state.draw)) {
+          GannDraw.save(state.draw);
+          redrawDrawLayer();
+          syncDrawToolbar();
+          showToast("已撤销");
+        }
+        ev.preventDefault();
+      }
+    });
+
+    document.addEventListener("click", (ev) => {
+      if (!els.drawColorPop || els.drawColorPop.classList.contains("hidden")) return;
+      if (ev.target.closest("#btnDrawColor") || ev.target.closest("#drawColorPop")) return;
+      els.drawColorPop.classList.add("hidden");
+    });
   }
 
   function updatePathTable(result) {
@@ -1587,6 +1990,7 @@
     window.addEventListener("resize", () => {
       redrawPathAndProject();
     });
+    bindDrawUi();
   }
 
   function init() {
@@ -1602,6 +2006,8 @@
     if (!fromUrl) applyParams({ mode: "price", begin: 1, step: 1, rings: 6 });
     render();
     updateSnapHint();
+    syncDrawToolbar();
+    redrawDrawLayer();
   }
 
   init();
