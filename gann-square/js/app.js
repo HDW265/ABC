@@ -59,7 +59,6 @@
     pathLabelIndex: $("pathLabelIndex"),
     pathLabelPrice: $("pathLabelPrice"),
     pathProjectDots: $("pathProjectDots"),
-    pathProjectLines: $("pathProjectLines"),
     pathSegments: $("pathSegments"),
     pathAutoExpand: $("pathAutoExpand"),
     pathAutoSegments: $("pathAutoSegments"),
@@ -81,11 +80,6 @@
     projectSecret: $("projectSecret"),
     projectChips: $("projectChips"),
     btnProjectCopy: $("btnProjectCopy"),
-    projectChannelsDetails: $("projectChannelsDetails"),
-    projectChannelsTitle: $("projectChannelsTitle"),
-    projectChannelHead: $("projectChannelHead"),
-    projectChannelBody: $("projectChannelBody"),
-    projectChannelsHint: $("projectChannelsHint"),
     resizeLeft: $("resizeLeft"),
     resizeRight: $("resizeRight"),
   };
@@ -1046,32 +1040,6 @@
     if (!sized) return;
     const ns = sized.ns;
     const showDots = !els.pathProjectDots || els.pathProjectDots.checked;
-    const showLines = els.pathProjectLines && els.pathProjectLines.checked;
-
-    if (showLines && proj.channels) {
-      proj.channels.forEach((ch) => {
-        const pts = [];
-        const startHit = GannSquare.findNearest(state.square, proj.startRaw);
-        if (startHit.cell) pts.push(cellCenter(startHit.cell.row, startHit.cell.col));
-        ch.cells.forEach((price) => {
-          if (!Number.isFinite(price)) return;
-          const hit = GannSquare.findNearest(state.square, price);
-          if (hit.cell) pts.push(cellCenter(hit.cell.row, hit.cell.col));
-        });
-        for (let i = 0; i < pts.length - 1; i += 1) {
-          const a = pts[i];
-          const b = pts[i + 1];
-          if (!a || !b) continue;
-          const line = document.createElementNS(ns, "line");
-          line.setAttribute("x1", a.x);
-          line.setAttribute("y1", a.y);
-          line.setAttribute("x2", b.x);
-          line.setAttribute("y2", b.y);
-          line.setAttribute("class", "project-channel-line");
-          els.pathOverlay.appendChild(line);
-        }
-      });
-    }
 
     if (showDots && proj.allDisplayPrices) {
       proj.allDisplayPrices.forEach((price) => {
@@ -1157,8 +1125,6 @@
     }
     els.projectResult.classList.remove("hidden");
     els.projectSecret.textContent = proj.secretLine;
-    els.projectChannelsTitle.textContent = `${proj.channelTitle}（${proj.templateCount} 条模板 · ${proj.segments} 段）`;
-    els.projectChannelsHint.textContent = "空档为 180° 跨列；定稿价见上方芯片。";
 
     const starPrices = new Set();
     if (state.pathResult && state.pathResult.steps) {
@@ -1187,28 +1153,6 @@
         });
         els.projectChips.appendChild(btn);
       });
-    });
-
-    const head = els.projectChannelHead;
-    const body = els.projectChannelBody;
-    head.innerHTML = "";
-    body.innerHTML = "";
-    const hr = document.createElement("tr");
-    hr.innerHTML = `<th>模板</th>${proj.display
-      .map((_, i) => `<th>${i + 1}</th>`)
-      .join("")}`;
-    head.appendChild(hr);
-    proj.channels.forEach((ch) => {
-      const tr = document.createElement("tr");
-      const cells = ch.cells
-        .map((p) =>
-          Number.isFinite(p)
-            ? `<td class="mono">${GannSquare.formatNumber(p)}</td>`
-            : `<td class="empty">—</td>`
-        )
-        .join("");
-      tr.innerHTML = `<td class="mono">${ch.label}</td>${cells}`;
-      body.appendChild(tr);
     });
   }
 
@@ -1322,7 +1266,8 @@
     const mode = pathOutputMode();
     const wantLine = mode === "line" || mode === "both";
     const wantProject = mode === "project" || mode === "both";
-    const userSegments = Math.max(2, Math.min(12, Number(els.pathSegments?.value) || 4));
+    const segCap = GannProject.PROJ_SEG_MAX || 40;
+    const userSegments = Math.max(2, Math.min(segCap, Number(els.pathSegments?.value) || 4));
     let segments = userSegments;
     let segmentAdaptNote = null;
 
@@ -1340,8 +1285,8 @@
       }
       if (!resolved.complete) {
         segmentAdaptNote = segmentAdaptNote
-          ? `${segmentAdaptNote}；已扩至 ${segments} 段仍未触及目标侧，请增大环数`
-          : `推演已扩至 ${segments} 段仍未触及目标侧，请增大环数`;
+          ? `${segmentAdaptNote}；已扩至 ${segments} 段仍未触及目标，请增大环数或检查起终点`
+          : `推演已扩至 ${segments} 段仍未触及目标，请增大环数或检查起终点`;
       }
     }
 
@@ -1633,7 +1578,7 @@
     document.querySelectorAll('input[name="pathDir"]').forEach((el) => {
       el.addEventListener("change", updateSnapHint);
     });
-    ["pathLabelIndex", "pathLabelPrice", "pathProjectDots", "pathProjectLines"].forEach((id) => {
+    ["pathLabelIndex", "pathLabelPrice", "pathProjectDots"].forEach((id) => {
       if (!els[id]) return;
       els[id].addEventListener("change", () => {
         redrawPathAndProject();

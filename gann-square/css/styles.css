@@ -753,22 +753,6 @@ input[type="range"] {
   box-shadow: inset 0 0 0 1px rgba(31, 111, 106, 0.45);
 }
 
-.project-channels {
-  margin-top: 0.55rem;
-  font-size: 0.88rem;
-}
-
-.project-channels summary {
-  cursor: pointer;
-  color: var(--ink-soft);
-  margin-bottom: 0.45rem;
-}
-
-.project-channel-table td.empty {
-  color: var(--ink-soft);
-  opacity: 0.55;
-}
-
 .path-overlay .project-mark {
   fill: none;
   stroke: #8a4b2a;
@@ -817,13 +801,6 @@ input[type="range"] {
 
 .path-overlay .locate-mark-label.lookup {
   fill: #0f5c58;
-}
-
-.path-overlay .project-channel-line {
-  fill: none;
-  stroke: rgba(138, 75, 42, 0.35);
-  stroke-width: 1.2;
-  stroke-dasharray: 3 4;
 }
 
 .path-actions {

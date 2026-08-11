@@ -151,7 +151,7 @@
         </div>
         <label class="field">
           <span>推演段数</span>
-          <input id="pathSegments" type="number" min="2" max="12" value="4" step="1" />
+          <input id="pathSegments" type="number" min="2" max="40" value="4" step="1" />
         </label>
         <div class="field">
           <span>标注</span>
@@ -159,7 +159,6 @@
             <label><input type="checkbox" id="pathLabelIndex" checked /> 序号</label>
             <label><input type="checkbox" id="pathLabelPrice" /> 价位</label>
             <label><input type="checkbox" id="pathProjectDots" checked /> 推演打点</label>
-            <label><input type="checkbox" id="pathProjectLines" /> 通道线</label>
           </div>
         </div>
         <div class="checks">
@@ -262,16 +261,6 @@
         <div class="path-result-actions">
           <button type="button" class="btn ghost compact" id="btnProjectCopy">复制秘诀</button>
         </div>
-        <details class="project-channels" id="projectChannelsDetails">
-          <summary id="projectChannelsTitle">五通道明细</summary>
-          <div class="path-table-wrap">
-            <table class="path-table project-channel-table" id="projectChannelTable">
-              <thead id="projectChannelHead"></thead>
-              <tbody id="projectChannelBody"></tbody>
-            </table>
-          </div>
-          <p class="hint" id="projectChannelsHint"></p>
-        </details>
       </section>
 
       <section class="path-result hidden" id="pathResult">
