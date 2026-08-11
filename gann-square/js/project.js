@@ -87,63 +87,6 @@
     return Math.max(frontier, edge);
   }
 
-  /** Ordered templates of 90/180 summing to segmentCount * 90. */
-  function templatesForSegments(segmentCount) {
-    const total = segmentCount * 90;
-    const out = [];
-    function rec(remaining, acc) {
-      if (remaining === 0) {
-        out.push(acc.slice());
-        return;
-      }
-      if (remaining < 90) return;
-      acc.push(90);
-      rec(remaining - 90, acc);
-      acc.pop();
-      if (remaining >= 180) {
-        acc.push(180);
-        rec(remaining - 180, acc);
-        acc.pop();
-      }
-    }
-    rec(total, []);
-    return out;
-  }
-
-  function templateLabel(template) {
-    return template.join("-");
-  }
-
-  /**
-   * Fill columns: each 90 advances 1 col; each 180 skips 1 then lands.
-   */
-  function fillTemplate(square, start, template, direction) {
-    const cols = segmentCountFromTemplate(template);
-    const cells = new Array(cols).fill(null);
-    let col = 0;
-    let price = start;
-    for (let i = 0; i < template.length; i += 1) {
-      const angle = template[i];
-      const planned = angle === 90 ? "45" : "180";
-      const step = angleStep(square, price, planned, direction);
-      if (!step) break;
-      if (angle === 180) {
-        col += 1;
-        if (col < cols) cells[col] = step.price;
-        col += 1;
-      } else {
-        if (col < cols) cells[col] = step.price;
-        col += 1;
-      }
-      price = step.price;
-    }
-    return cells;
-  }
-
-  function segmentCountFromTemplate(template) {
-    return template.reduce((s, a) => s + a / 90, 0);
-  }
-
   function sortEncounter(prices, direction) {
     return prices.slice().sort((a, b) => (direction === "down" ? b - a : a - b));
   }
@@ -195,37 +138,44 @@
     return takeNonAdjacent(past, direction, 2, step);
   }
 
-  function channelTitle(segmentCount, templateCount) {
-    if (segmentCount === 4) return "五通道明细";
-    if (segmentCount === 5) return "八通道明细";
-    return `${templateCount}通道明细`;
-  }
-
   const PROJ_SEG_MIN = 2;
-  const PROJ_SEG_MAX = 12;
+  const PROJ_SEG_MAX = 40;
 
-  /** True when secret display prices cover the target (side or closest-stop). */
-  function isProjectionComplete(display, target, direction, square) {
-    const all = display.flat().filter((p) => Number.isFinite(p));
+  /** True when prices include at least one on the target side. */
+  function touchesTargetSide(prices, target, direction) {
+    const all = (Array.isArray(prices[0]) ? prices.flat() : prices).filter((p) =>
+      Number.isFinite(p)
+    );
     if (!all.length || !Number.isFinite(target)) return false;
-    if (direction === "up") {
-      if (all.some((p) => p >= target)) return true;
-    } else if (all.some((p) => p <= target)) {
-      return true;
-    }
-    // Soft landing: frontier is already the closest structural step
-    // (next 90° would not get closer) — matches path closest-stop.
-    if (!square) return false;
-    const frontier = direction === "down" ? Math.min(...all) : Math.max(...all);
-    const next = step90(square, frontier, direction);
-    if (!next) return true;
-    const curDist = Math.abs(frontier - target);
-    const nextDist = Math.abs(next.price - target);
-    return nextDist >= curDist;
+    if (direction === "up") return all.some((p) => p >= target);
+    return all.some((p) => p <= target);
   }
 
   /**
-   * Smallest segment count (2…maxSeg) whose display touches the target side.
+   * Complete when the last segment lands on the target side, or soft-lands:
+   * frontier's own 90° is not closer, and the next segment's new last display
+   * is also not closer (910→710 stops at 712; 248→1025 continues past 1012).
+   */
+  function isProjectionComplete(display, target, direction, square, nextLastDisplay) {
+    if (!display || !display.length) return false;
+    const last = display[display.length - 1] || [];
+    if (touchesTargetSide(last, target, direction)) return true;
+    if (!square || !last.length) return false;
+
+    const frontier = direction === "down" ? Math.min(...last) : Math.max(...last);
+    const curDist = Math.abs(frontier - target);
+    const next = step90(square, frontier, direction);
+    if (next && Math.abs(next.price - target) < curDist) return false;
+    if (!nextLastDisplay) return false;
+    const nextBest = Math.min(
+      ...nextLastDisplay.filter((p) => Number.isFinite(p)).map((p) => Math.abs(p - target)),
+      Infinity
+    );
+    return nextBest >= curDist;
+  }
+
+  /**
+   * Smallest segment count (2…maxSeg) whose display covers the target.
    */
   function minSegmentsForProjection(square, options, maxSeg = PROJ_SEG_MAX) {
     const startRaw = Number(options.start);
@@ -233,6 +183,7 @@
     const direction = options.direction === "up" ? "up" : "down";
     const cap = Math.max(PROJ_SEG_MIN, Math.min(PROJ_SEG_MAX, Number(maxSeg) || PROJ_SEG_MAX));
 
+    let prev = null;
     for (let s = PROJ_SEG_MIN; s <= cap; s += 1) {
       const r = runProjection(square, {
         start: startRaw,
@@ -240,8 +191,24 @@
         direction,
         segments: s,
       });
-      if (r.ok && isProjectionComplete(r.display, targetRaw, direction, square)) {
+      if (!r.ok) continue;
+      const last = r.display[r.display.length - 1] || [];
+      // Soft-land on previous segment first (e.g. 712 before past-target 682).
+      if (
+        prev &&
+        isProjectionComplete(prev.display, targetRaw, direction, square, last)
+      ) {
+        return { segments: s - 1, complete: true };
+      }
+      if (touchesTargetSide(last, targetRaw, direction)) {
         return { segments: s, complete: true };
+      }
+      prev = r;
+    }
+    if (prev) {
+      const last = prev.display[prev.display.length - 1] || [];
+      if (touchesTargetSide(last, targetRaw, direction)) {
+        return { segments: cap, complete: true };
       }
     }
     return { segments: cap, complete: false };
@@ -270,7 +237,7 @@
   }
 
   /**
-   * Secret projection + channel table.
+   * Secret projection (秘诀). Channel templates are not generated (A1).
    */
   function runProjection(square, options) {
     const startRaw = Number(options.start);
@@ -329,13 +296,6 @@
       frontier = updateFrontier(display[n], direction, frontier);
     }
 
-    const templates = templatesForSegments(segments);
-    const channels = templates.map((tpl) => ({
-      label: templateLabel(tpl),
-      template: tpl,
-      cells: fillTemplate(square, startRaw, tpl, direction),
-    }));
-
     const secretParts = display
       .map((prices) => prices.map((p) => global.GannSquare.formatNumber(p)).join("、"))
       .filter((part) => part.length > 0);
@@ -353,10 +313,6 @@
       display,
       secretParts,
       secretLine,
-      templates,
-      channels,
-      channelTitle: channelTitle(segments, templates.length),
-      templateCount: templates.length,
       allDisplayPrices,
       message: secretLine,
     };
@@ -367,15 +323,12 @@
     resolveProjectionSegments,
     minSegmentsForProjection,
     isProjectionComplete,
-    templatesForSegments,
-    fillTemplate,
     pickDisplay,
     step90,
     step180,
     step180ForUnion,
     filterMonotone,
     angleStep,
-    channelTitle,
     PROJ_SEG_MIN,
     PROJ_SEG_MAX,
   };
