@@ -1339,22 +1339,36 @@
     }
 
     if (tool === "marker") {
-      const mKey = `${cell.row}:${cell.col}`;
+      // Ignore multi-click / double-fire from the same gesture
+      if (ev && ev.detail > 1) return true;
+      const mKey = `${Number(cell.row)}:${Number(cell.col)}`;
       const now = Date.now();
       if (
         state.draw._lastMarkerClick &&
         state.draw._lastMarkerClick.key === mKey &&
-        now - state.draw._lastMarkerClick.t < 80
+        now - state.draw._lastMarkerClick.t < 280
       ) {
         return true;
       }
       state.draw._lastMarkerClick = { key: mKey, t: now };
+      const before = GannDraw.findMarkersAt(state.draw, cell.row, cell.col).length;
       const res = GannDraw.toggleMarker(state.draw, cell);
+      const after = GannDraw.findMarkersAt(state.draw, cell.row, cell.col).length;
+      // Hard invariant: a cell never holds more than one marker
+      if (after > 1) {
+        GannDraw.sanitizeDrawState(state.draw);
+      }
       GannDraw.save(state.draw);
       updateReadout(cell);
       redrawDrawLayer();
       syncDrawToolbar();
-      showToast(res.removed ? `已取消圆标 ${cell.display}` : `圆标 ${cell.display}`);
+      showToast(
+        res.removed
+          ? `已取消圆标 ${cell.display}`
+          : before > 0
+            ? `圆标已重置 ${cell.display}`
+            : `圆标 ${cell.display}`
+      );
       return true;
     }
 

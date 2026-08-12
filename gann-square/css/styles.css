@@ -684,17 +684,11 @@ input[type="range"] {
   z-index: 3;
 }
 
-/* Circle markers on the cell (not SVG fill) — numbers stay prominent. */
+/* Circle markers: edge ring only — no fill, so clicks cannot stack color. */
 .cell.draw-marker {
-  /* B3: ring flush to cell edge so stroke does not cover digits */
   box-shadow: inset 0 0 0 2px var(--marker-color, #1f6f6a);
   outline: none;
-  /* B2: ≤8% tint for presence without washing out text */
-  background-image: linear-gradient(
-    color-mix(in srgb, var(--marker-color, #1f6f6a) 8%, transparent),
-    color-mix(in srgb, var(--marker-color, #1f6f6a) 8%, transparent)
-  );
-  /* B1: bolder, darker digits */
+  background-image: none;
   font-weight: 700;
   color: var(--ink);
   z-index: 2;
