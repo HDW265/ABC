@@ -5,7 +5,8 @@
 (function (global) {
   const ANGLE_CYCLE = ["45", "90", "180", "free"];
   const ANGLE_LABEL = { "45": "45°", "90": "90°", "180": "180°", free: "自由" };
-  const STORAGE_DRAW = "gann-square-draw-v1";
+  const STORAGE_DRAW_V1 = "gann-square-draw-v1";
+  const STORAGE_DRAW = "gann-square-draw-v2";
   const COLORS = ["#1f6f6a", "#1f5f8a", "#b8652f", "#b23a2f", "#142028", "#2f8f4e"];
 
   function uid() {
@@ -17,7 +18,6 @@
       color: COLORS[0],
       width: 2,
       dash: "solid",
-      markerFill: "none",
     };
   }
 
@@ -37,7 +37,9 @@
   }
 
   function cloneStyle(style) {
-    return { ...defaultStyle(), ...(style || {}) };
+    const next = { ...defaultStyle(), ...(style || {}) };
+    delete next.markerFill;
+    return next;
   }
 
   function dashArray(dash, width) {
@@ -187,6 +189,18 @@
     return findMarkersAt(state, row, col)[0] || null;
   }
 
+  /** Merge stacked markers, strip legacy solid-fill flags. Returns removed duplicate count. */
+  function sanitizeDrawState(state) {
+    const before = state.objects.filter((o) => o.type === "marker").length;
+    dedupeMarkers(state);
+    const after = state.objects.filter((o) => o.type === "marker").length;
+    state.objects.forEach((o) => {
+      if (o.type === "marker" && o.style) delete o.style.markerFill;
+    });
+    if (state.style) delete state.style.markerFill;
+    return { merged: Math.max(0, before - after) };
+  }
+
   /** Keep at most one marker per grid cell (fixes stacked duplicates). */
   function dedupeMarkers(state) {
     const seen = new Set();
@@ -210,7 +224,7 @@
   function addMarker(state, cell) {
     const row = Number(cell.row);
     const col = Number(cell.col);
-    dedupeMarkers(state);
+    sanitizeDrawState(state);
     pushUndo(state);
     const obj = {
       id: uid(),
@@ -226,7 +240,7 @@
   function toggleMarker(state, cell) {
     const row = Number(cell.row);
     const col = Number(cell.col);
-    dedupeMarkers(state);
+    sanitizeDrawState(state);
     const existing = findMarkersAt(state, row, col);
     if (existing.length) {
       pushUndo(state);
@@ -273,7 +287,7 @@
 
   function save(state) {
     try {
-      dedupeMarkers(state);
+      sanitizeDrawState(state);
       localStorage.setItem(
         STORAGE_DRAW,
         JSON.stringify({
@@ -290,21 +304,30 @@
   }
 
   function loadInto(state) {
+    const result = { merged: 0, fromV1: false };
     try {
-      const raw = localStorage.getItem(STORAGE_DRAW);
-      if (!raw) return;
-      const data = JSON.parse(raw);
-      if (Array.isArray(data.objects)) {
-        state.objects = data.objects;
-        dedupeMarkers(state);
+      let raw = localStorage.getItem(STORAGE_DRAW);
+      if (!raw) {
+        raw = localStorage.getItem(STORAGE_DRAW_V1);
+        result.fromV1 = !!raw;
       }
+      if (!raw) return result;
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.objects)) state.objects = data.objects;
       if (data.style) state.style = cloneStyle(data.style);
       if (data.angleMode && ANGLE_CYCLE.includes(data.angleMode)) state.angleMode = data.angleMode;
       if (data.tool) state.tool = data.tool;
       if (typeof data.toolbarExpanded === "boolean") state.toolbarExpanded = data.toolbarExpanded;
+      const { merged } = sanitizeDrawState(state);
+      result.merged = merged;
+      if (result.fromV1 || merged > 0) {
+        save(state);
+        if (result.fromV1) localStorage.removeItem(STORAGE_DRAW_V1);
+      }
     } catch (err) {
       /* ignore */
     }
+    return result;
   }
 
   function cellCenterEl(squareEl, stackEl, row, col) {
@@ -332,7 +355,7 @@
   function render(state, opts) {
     const { overlay, squareEl, stackEl, square } = opts;
     if (!overlay) return;
-    dedupeMarkers(state);
+    sanitizeDrawState(state);
     const sized = prepareOverlay(overlay, stackEl);
     if (!sized) return;
     const ns = sized.ns;
@@ -391,12 +414,7 @@
         ? Math.max(2.5, style.width + 1)
         : Math.max(2, style.width);
       circle.setAttribute("stroke-width", String(strokeW));
-      if (style.markerFill === "solid") {
-        circle.setAttribute("fill", style.color);
-        circle.setAttribute("fill-opacity", "0.22");
-      } else {
-        circle.setAttribute("fill", "none");
-      }
+      circle.setAttribute("fill", "none");
       circle.setAttribute("class", cls);
       circle.style.pointerEvents = interactive ? "all" : "none";
       if (interactive) {
@@ -419,7 +437,7 @@
 
     if (state.draft && state.draft.points.length) {
       if (state.draft.type === "marker") {
-        drawMarker(state.draft.points[0], state.draft.style, "draw-draft", null, false);
+        drawMarker(state.draft.points[0], state.draft.style, "draw-draft", null, false, false);
       } else {
         drawPolyline(state.draft.points, state.draft.style, "draw-draft", null, false);
         const last = state.draft.points[state.draft.points.length - 1];
@@ -471,12 +489,6 @@
         const p = center(obj.points[0].row, obj.points[0].col);
         ctx.beginPath();
         ctx.arc(p.x, p.y, cell * 0.22, 0, Math.PI * 2);
-        if (style.markerFill === "solid") {
-          ctx.fillStyle = style.color;
-          ctx.globalAlpha = 0.22;
-          ctx.fill();
-          ctx.globalAlpha = 1;
-        }
         ctx.stroke();
       } else if (obj.points.length >= 2) {
         ctx.beginPath();
@@ -496,6 +508,7 @@
     ANGLE_LABEL,
     COLORS,
     STORAGE_DRAW,
+    STORAGE_DRAW_V1,
     createState,
     defaultStyle,
     cloneStyle,
@@ -509,6 +522,7 @@
     findMarkerAt,
     findMarkersAt,
     dedupeMarkers,
+    sanitizeDrawState,
     toggleMarker,
     deleteSelected,
     deleteObject,

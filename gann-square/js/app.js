@@ -1332,6 +1332,16 @@
     }
 
     if (tool === "marker") {
+      const mKey = `${cell.row}:${cell.col}`;
+      const now = Date.now();
+      if (
+        state.draw._lastMarkerClick &&
+        state.draw._lastMarkerClick.key === mKey &&
+        now - state.draw._lastMarkerClick.t < 80
+      ) {
+        return true;
+      }
+      state.draw._lastMarkerClick = { key: mKey, t: now };
       const res = GannDraw.toggleMarker(state.draw, cell);
       GannDraw.save(state.draw);
       updateReadout(cell);
@@ -1395,9 +1405,12 @@
 
   function bindDrawUi() {
     if (!els.btnDrawToggle) return;
-    GannDraw.loadInto(state.draw);
+    const drawMigration = GannDraw.loadInto(state.draw);
     buildColorPopover();
     syncDrawToolbar();
+    if (drawMigration.merged > 0) {
+      showToast(`已合并 ${drawMigration.merged} 个叠层圆标`);
+    }
 
     els.btnDrawToggle.addEventListener("click", () => {
       state.draw.enabled = !state.draw.enabled;
@@ -1425,15 +1438,7 @@
         }
         if (state.draw.draft && state.draw.tool === "polyline") finishDrawDraft(true);
         const next = btn.dataset.drawTool;
-        if (next === "marker" && state.draw.tool === "marker") {
-          state.draw.style.markerFill =
-            state.draw.style.markerFill === "solid" ? "none" : "solid";
-          showToast(
-            state.draw.style.markerFill === "solid" ? "圆标：半透明填充" : "圆标：空心"
-          );
-        } else {
-          clearDrawTransient();
-        }
+        if (next !== state.draw.tool) clearDrawTransient();
         state.draw.tool = next;
         state.draw.draft = null;
         GannDraw.save(state.draw);
