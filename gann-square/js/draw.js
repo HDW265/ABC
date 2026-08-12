@@ -169,21 +169,53 @@
     return { ok: true };
   }
 
-  function findMarkerAt(state, row, col) {
-    return state.objects.find(
+  function markerCoordKey(row, col) {
+    return `${Number(row)}:${Number(col)}`;
+  }
+
+  function findMarkersAt(state, row, col) {
+    const key = markerCoordKey(row, col);
+    return state.objects.filter(
       (o) =>
         o.type === "marker" &&
-        o.points[0].row === row &&
-        o.points[0].col === col
+        o.points[0] &&
+        markerCoordKey(o.points[0].row, o.points[0].col) === key
     );
   }
 
+  function findMarkerAt(state, row, col) {
+    return findMarkersAt(state, row, col)[0] || null;
+  }
+
+  /** Keep at most one marker per grid cell (fixes stacked duplicates). */
+  function dedupeMarkers(state) {
+    const seen = new Set();
+    const kept = [];
+    state.objects.forEach((o) => {
+      if (o.type !== "marker" || !o.points[0]) {
+        kept.push(o);
+        return;
+      }
+      const p = o.points[0];
+      p.row = Number(p.row);
+      p.col = Number(p.col);
+      const key = markerCoordKey(p.row, p.col);
+      if (seen.has(key)) return;
+      seen.add(key);
+      kept.push(o);
+    });
+    state.objects = kept;
+  }
+
   function addMarker(state, cell) {
+    const row = Number(cell.row);
+    const col = Number(cell.col);
+    dedupeMarkers(state);
     pushUndo(state);
     const obj = {
       id: uid(),
       type: "marker",
-      points: [pointFromCell(cell)],
+      points: [{ row, col, price: cell.value, display: cell.display }],
       style: cloneStyle(state.style),
     };
     state.objects.push(obj);
@@ -192,14 +224,25 @@
 
   /** Place hollow marker, or remove if one already exists on this cell. */
   function toggleMarker(state, cell) {
-    const existing = findMarkerAt(state, cell.row, cell.col);
-    if (existing) {
+    const row = Number(cell.row);
+    const col = Number(cell.col);
+    dedupeMarkers(state);
+    const existing = findMarkersAt(state, row, col);
+    if (existing.length) {
       pushUndo(state);
-      state.objects = state.objects.filter((o) => o.id !== existing.id);
-      if (state.selectedId === existing.id) state.selectedId = null;
-      return { removed: true, obj: existing };
+      const ids = new Set(existing.map((o) => o.id));
+      state.objects = state.objects.filter((o) => !ids.has(o.id));
+      if (existing.some((o) => o.id === state.selectedId)) state.selectedId = null;
+      return { removed: true, obj: existing[0], count: existing.length };
     }
-    const obj = addMarker(state, cell);
+    pushUndo(state);
+    const obj = {
+      id: uid(),
+      type: "marker",
+      points: [{ row, col, price: cell.value, display: cell.display }],
+      style: cloneStyle(state.style),
+    };
+    state.objects.push(obj);
     return { removed: false, obj };
   }
 
@@ -230,6 +273,7 @@
 
   function save(state) {
     try {
+      dedupeMarkers(state);
       localStorage.setItem(
         STORAGE_DRAW,
         JSON.stringify({
@@ -250,7 +294,10 @@
       const raw = localStorage.getItem(STORAGE_DRAW);
       if (!raw) return;
       const data = JSON.parse(raw);
-      if (Array.isArray(data.objects)) state.objects = data.objects;
+      if (Array.isArray(data.objects)) {
+        state.objects = data.objects;
+        dedupeMarkers(state);
+      }
       if (data.style) state.style = cloneStyle(data.style);
       if (data.angleMode && ANGLE_CYCLE.includes(data.angleMode)) state.angleMode = data.angleMode;
       if (data.tool) state.tool = data.tool;
@@ -285,6 +332,7 @@
   function render(state, opts) {
     const { overlay, squareEl, stackEl, square } = opts;
     if (!overlay) return;
+    dedupeMarkers(state);
     const sized = prepareOverlay(overlay, stackEl);
     if (!sized) return;
     const ns = sized.ns;
@@ -345,7 +393,7 @@
       circle.setAttribute("stroke-width", String(strokeW));
       if (style.markerFill === "solid") {
         circle.setAttribute("fill", style.color);
-        circle.setAttribute("fill-opacity", "0.35");
+        circle.setAttribute("fill-opacity", "0.22");
       } else {
         circle.setAttribute("fill", "none");
       }
@@ -425,7 +473,7 @@
         ctx.arc(p.x, p.y, cell * 0.22, 0, Math.PI * 2);
         if (style.markerFill === "solid") {
           ctx.fillStyle = style.color;
-          ctx.globalAlpha = 0.35;
+          ctx.globalAlpha = 0.22;
           ctx.fill();
           ctx.globalAlpha = 1;
         }
@@ -459,6 +507,8 @@
     commitDraft,
     addMarker,
     findMarkerAt,
+    findMarkersAt,
+    dedupeMarkers,
     toggleMarker,
     deleteSelected,
     deleteObject,
