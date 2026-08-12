@@ -201,6 +201,24 @@
     return { merged: Math.max(0, before - after) };
   }
 
+  function syncMarkerCellClasses(state, squareEl) {
+    if (!squareEl) return;
+    squareEl.querySelectorAll(".cell.draw-marker, .cell.draw-marker-selected").forEach((el) => {
+      el.classList.remove("draw-marker", "draw-marker-selected");
+      el.style.removeProperty("--marker-color");
+    });
+    state.objects.forEach((obj) => {
+      if (obj.type !== "marker" || !obj.points[0]) return;
+      const row = Number(obj.points[0].row);
+      const col = Number(obj.points[0].col);
+      const el = squareEl.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+      if (!el) return;
+      el.classList.add("draw-marker");
+      if (obj.id === state.selectedId) el.classList.add("draw-marker-selected");
+      el.style.setProperty("--marker-color", (obj.style && obj.style.color) || COLORS[0]);
+    });
+  }
+
   /** Keep at most one marker per grid cell (fixes stacked duplicates). */
   function dedupeMarkers(state) {
     const seen = new Set();
@@ -403,25 +421,13 @@
     };
 
     const drawMarker = (pt, style, cls, id, interactive, selected) => {
-      const c = cellCenterEl(squareEl, stackEl, pt.row, pt.col);
-      if (!c) return;
-      const circle = document.createElementNS(ns, "circle");
-      circle.setAttribute("cx", c.x);
-      circle.setAttribute("cy", c.y);
-      circle.setAttribute("r", Math.max(4, c.r * 0.58));
-      circle.setAttribute("stroke", style.color);
-      const strokeW = selected
-        ? Math.max(2.5, style.width + 1)
-        : Math.max(2, style.width);
-      circle.setAttribute("stroke-width", String(strokeW));
-      circle.setAttribute("fill", "none");
-      circle.setAttribute("class", cls);
-      circle.style.pointerEvents = interactive ? "all" : "none";
-      if (interactive) {
-        circle.style.cursor = state.tool === "eraser" ? "crosshair" : "pointer";
-      }
-      if (id) circle.dataset.id = id;
-      overlay.appendChild(circle);
+      /* Markers render on HTML cells (syncMarkerCellClasses), not SVG — keeps numbers visible. */
+      void pt;
+      void style;
+      void cls;
+      void id;
+      void interactive;
+      void selected;
     };
 
     state.objects.forEach((obj) => {
@@ -468,6 +474,8 @@
         }
       }
     }
+
+    syncMarkerCellClasses(state, squareEl);
   }
 
   function paintToCanvas(ctx, state, layout) {
@@ -486,10 +494,14 @@
       else if (style.dash === "dot") ctx.setLineDash([2, 4]);
       else ctx.setLineDash([]);
       if (obj.type === "marker") {
-        const p = center(obj.points[0].row, obj.points[0].col);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, cell * 0.22, 0, Math.PI * 2);
-        ctx.stroke();
+        const row = Number(obj.points[0].row);
+        const col = Number(obj.points[0].col);
+        const x = pad + col * (cell + gap);
+        const y = pad + row * (cell + gap);
+        const inset = 2.5;
+        ctx.strokeStyle = style.color;
+        ctx.lineWidth = Math.max(2, style.width);
+        ctx.strokeRect(x + inset, y + inset, cell - inset * 2, cell - inset * 2);
       } else if (obj.points.length >= 2) {
         ctx.beginPath();
         obj.points.forEach((pt, i) => {
@@ -523,6 +535,7 @@
     findMarkersAt,
     dedupeMarkers,
     sanitizeDrawState,
+    syncMarkerCellClasses,
     toggleMarker,
     deleteSelected,
     deleteObject,

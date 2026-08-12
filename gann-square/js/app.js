@@ -1320,7 +1320,14 @@
     }
 
     if (tool === "eraser") {
-      // Prefer object under cursor via overlay; cell click clears selection only
+      const marker = GannDraw.findMarkerAt(state.draw, cell.row, cell.col);
+      if (marker) {
+        GannDraw.deleteObject(state.draw, marker.id);
+        GannDraw.save(state.draw);
+        showToast("已删除");
+        redrawDrawLayer();
+        return true;
+      }
       if (state.draw.selectedId) {
         GannDraw.deleteSelected(state.draw);
         GannDraw.save(state.draw);

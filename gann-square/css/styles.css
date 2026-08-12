@@ -684,6 +684,19 @@ input[type="range"] {
   z-index: 3;
 }
 
+/* Circle markers live on the cell (not SVG fill) so numbers stay visible. */
+.cell.draw-marker {
+  outline: 2px solid var(--marker-color, #1f6f6a);
+  outline-offset: -2px;
+  z-index: 2;
+  position: relative;
+}
+
+.cell.draw-marker.draw-marker-selected {
+  outline-width: 3px;
+  z-index: 3;
+}
+
 .zoom-controls {
   display: flex;
   align-items: center;
