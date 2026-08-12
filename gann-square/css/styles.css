@@ -649,8 +649,16 @@ input[type="range"] {
   /* hit-testing enabled per-element in JS for select/eraser */
 }
 
-.draw-overlay .draw-obj.selected {
+.draw-overlay .draw-obj.selected:not(.marker) {
   filter: drop-shadow(0 0 3px rgba(184, 101, 47, 0.55));
+}
+
+.draw-overlay .draw-obj.marker {
+  fill: none;
+}
+
+.draw-overlay .draw-obj.marker.selected {
+  filter: none;
 }
 
 .draw-overlay .draw-draft {
@@ -673,6 +681,34 @@ input[type="range"] {
 
 .square.draw-mode .cell.draw-anchor {
   outline: 2px solid var(--teal);
+  z-index: 3;
+}
+
+/* Circle markers: edge ring only — no fill, so clicks cannot stack color. */
+.cell.draw-marker {
+  box-shadow: inset 0 0 0 2px var(--marker-color, #1f6f6a);
+  outline: none;
+  background-image: none;
+  font-weight: 700;
+  color: var(--ink);
+  z-index: 2;
+  position: relative;
+}
+
+.cell.draw-marker.diag {
+  color: var(--diag);
+}
+
+.cell.draw-marker.cross {
+  color: var(--cross);
+}
+
+.cell.draw-marker.center {
+  color: var(--center);
+}
+
+.cell.draw-marker.draw-marker-selected {
+  box-shadow: inset 0 0 0 3px var(--marker-color, #1f6f6a);
   z-index: 3;
 }
 
@@ -1178,6 +1214,11 @@ input[type="range"] {
 
 .square.focus-locate .cell:not(.locate-project):not(.locate-lookup) {
   filter: saturate(0.28) opacity(0.4);
+}
+
+.square.focus-locate .cell.draw-marker:not(.locate-project):not(.locate-lookup) {
+  filter: none;
+  opacity: 1;
 }
 
 .cell.lookup-hit {

@@ -1292,19 +1292,42 @@
     syncDrawToolbar();
   }
 
+  function clearDrawTransient() {
+    state.draw.selectedId = null;
+    state.draw.draft = null;
+    state.draw.hoverCell = null;
+    if (els.square) {
+      els.square.querySelectorAll(".cell.draw-forbidden, .cell.draw-anchor").forEach((el) => {
+        el.classList.remove("draw-forbidden", "draw-anchor");
+      });
+      els.square.querySelectorAll(".cell.selected").forEach((el) => el.classList.remove("selected"));
+    }
+    state.selectedKey = null;
+  }
+
   function handleDrawCellClick(cell, ev) {
     if (!state.draw.enabled) return false;
     const tool = state.draw.tool;
 
     if (tool === "select") {
-      state.draw.selectedId = null;
-      selectCell(cell);
+      const marker = GannDraw.findMarkerAt(state.draw, cell.row, cell.col);
+      state.draw.selectedId = marker ? marker.id : null;
+      els.square.querySelectorAll(".cell.selected").forEach((el) => el.classList.remove("selected"));
+      state.selectedKey = null;
+      updateReadout(cell);
       redrawDrawLayer();
       return true;
     }
 
     if (tool === "eraser") {
-      // Prefer object under cursor via overlay; cell click clears selection only
+      const marker = GannDraw.findMarkerAt(state.draw, cell.row, cell.col);
+      if (marker) {
+        GannDraw.deleteObject(state.draw, marker.id);
+        GannDraw.save(state.draw);
+        showToast("已删除");
+        redrawDrawLayer();
+        return true;
+      }
       if (state.draw.selectedId) {
         GannDraw.deleteSelected(state.draw);
         GannDraw.save(state.draw);
@@ -1316,12 +1339,36 @@
     }
 
     if (tool === "marker") {
-      GannDraw.addMarker(state.draw, cell);
+      // Ignore multi-click / double-fire from the same gesture
+      if (ev && ev.detail > 1) return true;
+      const mKey = `${Number(cell.row)}:${Number(cell.col)}`;
+      const now = Date.now();
+      if (
+        state.draw._lastMarkerClick &&
+        state.draw._lastMarkerClick.key === mKey &&
+        now - state.draw._lastMarkerClick.t < 280
+      ) {
+        return true;
+      }
+      state.draw._lastMarkerClick = { key: mKey, t: now };
+      const before = GannDraw.findMarkersAt(state.draw, cell.row, cell.col).length;
+      const res = GannDraw.toggleMarker(state.draw, cell);
+      const after = GannDraw.findMarkersAt(state.draw, cell.row, cell.col).length;
+      // Hard invariant: a cell never holds more than one marker
+      if (after > 1) {
+        GannDraw.sanitizeDrawState(state.draw);
+      }
       GannDraw.save(state.draw);
-      selectCell(cell, { keepLocate: true });
+      updateReadout(cell);
       redrawDrawLayer();
       syncDrawToolbar();
-      showToast(`圆标 ${cell.display}`);
+      showToast(
+        res.removed
+          ? `已取消圆标 ${cell.display}`
+          : before > 0
+            ? `圆标已重置 ${cell.display}`
+            : `圆标 ${cell.display}`
+      );
       return true;
     }
 
@@ -1379,9 +1426,12 @@
 
   function bindDrawUi() {
     if (!els.btnDrawToggle) return;
-    GannDraw.loadInto(state.draw);
+    const drawMigration = GannDraw.loadInto(state.draw);
     buildColorPopover();
     syncDrawToolbar();
+    if (drawMigration.merged > 0) {
+      showToast(`已合并 ${drawMigration.merged} 个叠层圆标`);
+    }
 
     els.btnDrawToggle.addEventListener("click", () => {
       state.draw.enabled = !state.draw.enabled;
@@ -1409,13 +1459,7 @@
         }
         if (state.draw.draft && state.draw.tool === "polyline") finishDrawDraft(true);
         const next = btn.dataset.drawTool;
-        if (next === "marker" && state.draw.tool === "marker") {
-          state.draw.style.markerFill =
-            state.draw.style.markerFill === "solid" ? "none" : "solid";
-          showToast(
-            state.draw.style.markerFill === "solid" ? "圆标：半透明填充" : "圆标：空心"
-          );
-        }
+        if (next !== state.draw.tool) clearDrawTransient();
         state.draw.tool = next;
         state.draw.draft = null;
         GannDraw.save(state.draw);
@@ -1502,6 +1546,10 @@
         }
         state.draw.tool = "select";
         state.draw.selectedId = id;
+        if (els.square) {
+          els.square.querySelectorAll(".cell.selected").forEach((el) => el.classList.remove("selected"));
+        }
+        state.selectedKey = null;
         syncDrawToolbar();
         redrawDrawLayer();
       });
