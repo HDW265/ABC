@@ -299,7 +299,8 @@
     const secretParts = display
       .map((prices) => prices.map((p) => global.GannSquare.formatNumber(p)).join("、"))
       .filter((part) => part.length > 0);
-    const secretLine = `${global.GannSquare.formatNumber(startRaw)} 推 ${global.GannSquare.formatNumber(targetRaw)} = ${secretParts.join(" — ")}`;
+    const secretBody = secretParts.join(" — ");
+    const secretLine = `${global.GannSquare.formatNumber(startRaw)} 推 ${global.GannSquare.formatNumber(targetRaw)} · Constellate · 完整推演 = ${secretBody}`;
 
     const allDisplayPrices = uniqueSorted(display.flat());
 
