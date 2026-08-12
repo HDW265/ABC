@@ -684,9 +684,9 @@ input[type="range"] {
   z-index: 3;
 }
 
-/* Circle markers: edge ring only — no fill, so clicks cannot stack color. */
+/* Marker cells: bold digits only. The circle itself is an SVG hollow ring. */
 .cell.draw-marker {
-  box-shadow: inset 0 0 0 2px var(--marker-color, #1f6f6a);
+  box-shadow: none;
   outline: none;
   background-image: none;
   font-weight: 700;
@@ -708,8 +708,15 @@ input[type="range"] {
 }
 
 .cell.draw-marker.draw-marker-selected {
-  box-shadow: inset 0 0 0 3px var(--marker-color, #1f6f6a);
   z-index: 3;
+}
+
+.draw-overlay .draw-obj.marker {
+  fill: none !important;
+}
+
+.draw-overlay .draw-obj.marker.selected {
+  filter: none;
 }
 
 .zoom-controls {
