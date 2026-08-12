@@ -1,5 +1,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
+  const LABEL_PATH_LINE = "Constellate · 角十角";
+  const LABEL_PROJECT_FULL = "Constellate · 完整推演";
 
   const els = {
     layout: $("layout"),
@@ -1634,7 +1636,7 @@
     const snapNote = result.snapped
       ? `（输入 ${GannSquare.formatNumber(result.targetRaw)} → 落点 ${GannSquare.formatNumber(result.targetPrice)}）`
       : "";
-    els.pathResultSummary.textContent = `${prices} · ${result.reached ? "已到达" : "未到达"} · ${result.steps.length - 1} 步${snapNote}`;
+    els.pathResultSummary.textContent = `${LABEL_PATH_LINE} · ${prices} · ${result.reached ? "已到达" : "未到达"} · ${result.steps.length - 1} 步${snapNote}`;
     els.pathSummary.textContent = result.message;
     updateMinibarFromState();
 
@@ -1660,7 +1662,7 @@
     });
 
     const mini = result.steps.map((s) => GannSquare.formatNumber(s.price)).join(" → ");
-    els.pathMinibarText.textContent = `${mini}${result.reached ? " ✓" : ""}`;
+    els.pathMinibarText.textContent = `${LABEL_PATH_LINE} · ${mini}${result.reached ? " ✓" : ""}`;
     const collapsed = state.leftCollapsed || state.rightCollapsed;
     els.pathMinibar.classList.toggle("hidden", !collapsed || !result.ok);
   }
@@ -1832,10 +1834,11 @@
     if (!els.pathMinibar) return;
     const parts = [];
     if (state.pathResult?.ok) {
-      parts.push(state.pathResult.steps.map((s) => GannSquare.formatNumber(s.price)).join(" → "));
+      const line = state.pathResult.steps.map((s) => GannSquare.formatNumber(s.price)).join(" → ");
+      parts.push(`${LABEL_PATH_LINE} · ${line}${state.pathResult.reached ? " ✓" : ""}`);
     }
     if (state.projectResult?.ok) {
-      parts.push(`推演${state.projectResult.segments}段`);
+      parts.push(`${LABEL_PROJECT_FULL} · ${state.projectResult.segments}段`);
     }
     if (!parts.length) {
       els.pathMinibar.classList.add("hidden");
@@ -1861,10 +1864,12 @@
 
   async function copyPath() {
     if (!state.pathResult) return;
-    const text = state.pathResult.steps.map((s) => GannSquare.formatNumber(s.price)).join(" → ");
+    const text = `${LABEL_PATH_LINE} · ${state.pathResult.steps
+      .map((s) => GannSquare.formatNumber(s.price))
+      .join(" → ")}`;
     try {
       await navigator.clipboard.writeText(text);
-      showToast("路径已复制");
+      showToast("角十角路径已复制");
     } catch (err) {
       showToast("复制失败");
     }
@@ -2015,7 +2020,7 @@
         if (!state.projectResult?.secretLine) return;
         try {
           await navigator.clipboard.writeText(state.projectResult.secretLine);
-          showToast("秘诀已复制");
+          showToast("完整 Constellate 已复制");
         } catch (err) {
           showToast("复制失败");
         }
