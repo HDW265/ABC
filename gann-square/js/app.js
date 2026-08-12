@@ -1292,13 +1292,29 @@
     syncDrawToolbar();
   }
 
+  function clearDrawTransient() {
+    state.draw.selectedId = null;
+    state.draw.draft = null;
+    state.draw.hoverCell = null;
+    if (els.square) {
+      els.square.querySelectorAll(".cell.draw-forbidden, .cell.draw-anchor").forEach((el) => {
+        el.classList.remove("draw-forbidden", "draw-anchor");
+      });
+      els.square.querySelectorAll(".cell.selected").forEach((el) => el.classList.remove("selected"));
+    }
+    state.selectedKey = null;
+  }
+
   function handleDrawCellClick(cell, ev) {
     if (!state.draw.enabled) return false;
     const tool = state.draw.tool;
 
     if (tool === "select") {
-      state.draw.selectedId = null;
-      selectCell(cell);
+      const marker = GannDraw.findMarkerAt(state.draw, cell.row, cell.col);
+      state.draw.selectedId = marker ? marker.id : null;
+      els.square.querySelectorAll(".cell.selected").forEach((el) => el.classList.remove("selected"));
+      state.selectedKey = null;
+      updateReadout(cell);
       redrawDrawLayer();
       return true;
     }
@@ -1316,12 +1332,12 @@
     }
 
     if (tool === "marker") {
-      GannDraw.addMarker(state.draw, cell);
+      const res = GannDraw.toggleMarker(state.draw, cell);
       GannDraw.save(state.draw);
-      selectCell(cell, { keepLocate: true });
+      updateReadout(cell);
       redrawDrawLayer();
       syncDrawToolbar();
-      showToast(`圆标 ${cell.display}`);
+      showToast(res.removed ? `已取消圆标 ${cell.display}` : `圆标 ${cell.display}`);
       return true;
     }
 
@@ -1415,6 +1431,8 @@
           showToast(
             state.draw.style.markerFill === "solid" ? "圆标：半透明填充" : "圆标：空心"
           );
+        } else {
+          clearDrawTransient();
         }
         state.draw.tool = next;
         state.draw.draft = null;
@@ -1502,6 +1520,10 @@
         }
         state.draw.tool = "select";
         state.draw.selectedId = id;
+        if (els.square) {
+          els.square.querySelectorAll(".cell.selected").forEach((el) => el.classList.remove("selected"));
+        }
+        state.selectedKey = null;
         syncDrawToolbar();
         redrawDrawLayer();
       });

@@ -649,8 +649,16 @@ input[type="range"] {
   /* hit-testing enabled per-element in JS for select/eraser */
 }
 
-.draw-overlay .draw-obj.selected {
+.draw-overlay .draw-obj.selected:not(.marker) {
   filter: drop-shadow(0 0 3px rgba(184, 101, 47, 0.55));
+}
+
+.draw-overlay .draw-obj.marker {
+  fill: none;
+}
+
+.draw-overlay .draw-obj.marker.selected {
+  filter: none;
 }
 
 .draw-overlay .draw-draft {

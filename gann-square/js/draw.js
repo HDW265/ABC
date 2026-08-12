@@ -169,6 +169,15 @@
     return { ok: true };
   }
 
+  function findMarkerAt(state, row, col) {
+    return state.objects.find(
+      (o) =>
+        o.type === "marker" &&
+        o.points[0].row === row &&
+        o.points[0].col === col
+    );
+  }
+
   function addMarker(state, cell) {
     pushUndo(state);
     const obj = {
@@ -178,8 +187,20 @@
       style: cloneStyle(state.style),
     };
     state.objects.push(obj);
-    state.selectedId = obj.id;
     return obj;
+  }
+
+  /** Place hollow marker, or remove if one already exists on this cell. */
+  function toggleMarker(state, cell) {
+    const existing = findMarkerAt(state, cell.row, cell.col);
+    if (existing) {
+      pushUndo(state);
+      state.objects = state.objects.filter((o) => o.id !== existing.id);
+      if (state.selectedId === existing.id) state.selectedId = null;
+      return { removed: true, obj: existing };
+    }
+    const obj = addMarker(state, cell);
+    return { removed: false, obj };
   }
 
   function deleteSelected(state) {
@@ -310,20 +331,24 @@
       overlay.appendChild(poly);
     };
 
-    const drawMarker = (pt, style, cls, id, interactive) => {
+    const drawMarker = (pt, style, cls, id, interactive, selected) => {
       const c = cellCenterEl(squareEl, stackEl, pt.row, pt.col);
       if (!c) return;
       const circle = document.createElementNS(ns, "circle");
       circle.setAttribute("cx", c.x);
       circle.setAttribute("cy", c.y);
-      circle.setAttribute("r", Math.max(5, c.r * 0.85));
+      circle.setAttribute("r", Math.max(4, c.r * 0.58));
       circle.setAttribute("stroke", style.color);
-      circle.setAttribute("stroke-width", String(Math.max(1.5, style.width)));
-      circle.setAttribute(
-        "fill",
-        style.markerFill === "solid" ? style.color : "rgba(255,252,248,0.85)"
-      );
-      if (style.markerFill === "solid") circle.setAttribute("fill-opacity", "0.35");
+      const strokeW = selected
+        ? Math.max(2.5, style.width + 1)
+        : Math.max(2, style.width);
+      circle.setAttribute("stroke-width", String(strokeW));
+      if (style.markerFill === "solid") {
+        circle.setAttribute("fill", style.color);
+        circle.setAttribute("fill-opacity", "0.35");
+      } else {
+        circle.setAttribute("fill", "none");
+      }
       circle.setAttribute("class", cls);
       circle.style.pointerEvents = interactive ? "all" : "none";
       if (interactive) {
@@ -334,10 +359,12 @@
     };
 
     state.objects.forEach((obj) => {
-      const cls = obj.id === state.selectedId ? "draw-obj selected" : "draw-obj";
+      const selected = obj.id === state.selectedId;
       if (obj.type === "marker") {
-        drawMarker(obj.points[0], obj.style, cls, obj.id, canHitObjs);
+        const cls = selected ? "draw-obj marker selected" : "draw-obj marker";
+        drawMarker(obj.points[0], obj.style, cls, obj.id, canHitObjs, selected);
       } else {
+        const cls = selected ? "draw-obj selected" : "draw-obj";
         drawPolyline(obj.points, obj.style, cls, obj.id, canHitObjs);
       }
     });
@@ -395,12 +422,13 @@
       if (obj.type === "marker") {
         const p = center(obj.points[0].row, obj.points[0].col);
         ctx.beginPath();
-        ctx.arc(p.x, p.y, cell * 0.28, 0, Math.PI * 2);
-        ctx.fillStyle =
-          style.markerFill === "solid" ? style.color : "rgba(255,252,248,0.9)";
-        if (style.markerFill === "solid") ctx.globalAlpha = 0.35;
-        ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.arc(p.x, p.y, cell * 0.22, 0, Math.PI * 2);
+        if (style.markerFill === "solid") {
+          ctx.fillStyle = style.color;
+          ctx.globalAlpha = 0.35;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
         ctx.stroke();
       } else if (obj.points.length >= 2) {
         ctx.beginPath();
@@ -430,6 +458,8 @@
     addPointToDraft,
     commitDraft,
     addMarker,
+    findMarkerAt,
+    toggleMarker,
     deleteSelected,
     deleteObject,
     clearAll,
