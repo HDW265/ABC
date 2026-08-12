@@ -451,17 +451,71 @@
       overlay.appendChild(poly);
     };
 
+    const drawHollowMarker = (pt, style, cls, id, interactive, selected) => {
+      const c = cellCenterEl(squareEl, stackEl, pt.row, pt.col);
+      if (!c) return;
+      // Ring sits outside digit area; never fill (prevents wash-out / stacking look).
+      const r = Math.max(6, c.r * 1.05);
+      const strokeW = selected
+        ? Math.max(2.75, (style.width || 2) + 1.25)
+        : Math.max(2.25, style.width || 2);
+
+      if (interactive) {
+        const hit = document.createElementNS(ns, "circle");
+        hit.setAttribute("cx", c.x);
+        hit.setAttribute("cy", c.y);
+        hit.setAttribute("r", String(r));
+        hit.setAttribute("fill", "none");
+        hit.setAttribute("stroke", style.color);
+        hit.setAttribute("stroke-width", String(Math.max(14, strokeW * 4)));
+        hit.setAttribute("stroke-opacity", "0.01");
+        hit.setAttribute("class", cls);
+        hit.style.pointerEvents = "stroke";
+        hit.style.cursor = state.tool === "eraser" ? "crosshair" : "pointer";
+        if (id) hit.dataset.id = id;
+        overlay.appendChild(hit);
+      }
+
+      const circle = document.createElementNS(ns, "circle");
+      circle.setAttribute("cx", c.x);
+      circle.setAttribute("cy", c.y);
+      circle.setAttribute("r", String(r));
+      circle.setAttribute("fill", "none");
+      circle.setAttribute("stroke", style.color);
+      circle.setAttribute("stroke-width", String(strokeW));
+      circle.setAttribute("class", cls);
+      circle.style.pointerEvents = "none";
+      if (id) circle.dataset.id = id;
+      overlay.appendChild(circle);
+    };
+
+    // One SVG ring per cell (deduped); never stack multiple circles.
+    const drawnMarkerKeys = new Set();
     state.objects.forEach((obj) => {
-      // Markers are HTML-only (syncMarkerCellClasses). Never paint SVG circles.
-      if (obj.type === "marker") return;
       const selected = obj.id === state.selectedId;
+      if (obj.type === "marker") {
+        if (!obj.points[0]) return;
+        const key = markerCoordKey(obj.points[0].row, obj.points[0].col);
+        if (drawnMarkerKeys.has(key)) return;
+        drawnMarkerKeys.add(key);
+        const cls = selected ? "draw-obj marker selected" : "draw-obj marker";
+        drawHollowMarker(obj.points[0], obj.style || defaultStyle(), cls, obj.id, canHitObjs, selected);
+        return;
+      }
       const cls = selected ? "draw-obj selected" : "draw-obj";
       drawPolyline(obj.points, obj.style, cls, obj.id, canHitObjs);
     });
 
     if (state.draft && state.draft.points.length) {
       if (state.draft.type === "marker") {
-        /* draft markers also use cell classes only */
+        drawHollowMarker(
+          state.draft.points[0],
+          state.draft.style || defaultStyle(),
+          "draw-draft marker",
+          null,
+          false,
+          false
+        );
       } else {
         drawPolyline(state.draft.points, state.draft.style, "draw-draft", null, false);
         const last = state.draft.points[state.draft.points.length - 1];
@@ -512,21 +566,18 @@
       else if (style.dash === "dot") ctx.setLineDash([2, 4]);
       else ctx.setLineDash([]);
       if (obj.type === "marker") {
-        const row = Number(obj.points[0].row);
-        const col = Number(obj.points[0].col);
-        const x = pad + col * (cell + gap);
-        const y = pad + row * (cell + gap);
-        // Stroke-only ring (no fill) + redraw number on top
-        ctx.strokeStyle = style.color;
-        ctx.lineWidth = Math.max(2, style.width);
-        ctx.strokeRect(x + 1, y + 1, cell - 2, cell - 2);
+        const p = center(obj.points[0].row, obj.points[0].col);
+        const r = cell * 0.34;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.stroke();
         const label = obj.points[0].display != null ? String(obj.points[0].display) : "";
         if (label) {
           ctx.fillStyle = "#142028";
           ctx.font = `700 ${Math.max(9, Math.floor(cell * 0.28))}px "IBM Plex Mono", monospace`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(label, x + cell / 2, y + cell / 2);
+          ctx.fillText(label, p.x, p.y);
         }
       } else if (obj.points.length >= 2) {
         ctx.beginPath();
