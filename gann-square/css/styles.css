@@ -684,16 +684,37 @@ input[type="range"] {
   z-index: 3;
 }
 
-/* Circle markers live on the cell (not SVG fill) so numbers stay visible. */
+/* Circle markers on the cell (not SVG fill) — numbers stay prominent. */
 .cell.draw-marker {
-  outline: 2px solid var(--marker-color, #1f6f6a);
-  outline-offset: -2px;
+  /* B3: ring flush to cell edge so stroke does not cover digits */
+  box-shadow: inset 0 0 0 2px var(--marker-color, #1f6f6a);
+  outline: none;
+  /* B2: ≤8% tint for presence without washing out text */
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--marker-color, #1f6f6a) 8%, transparent),
+    color-mix(in srgb, var(--marker-color, #1f6f6a) 8%, transparent)
+  );
+  /* B1: bolder, darker digits */
+  font-weight: 700;
+  color: var(--ink);
   z-index: 2;
   position: relative;
 }
 
+.cell.draw-marker.diag {
+  color: var(--diag);
+}
+
+.cell.draw-marker.cross {
+  color: var(--cross);
+}
+
+.cell.draw-marker.center {
+  color: var(--center);
+}
+
 .cell.draw-marker.draw-marker-selected {
-  outline-width: 3px;
+  box-shadow: inset 0 0 0 3px var(--marker-color, #1f6f6a);
   z-index: 3;
 }
 
@@ -1199,6 +1220,11 @@ input[type="range"] {
 
 .square.focus-locate .cell:not(.locate-project):not(.locate-lookup) {
   filter: saturate(0.28) opacity(0.4);
+}
+
+.square.focus-locate .cell.draw-marker:not(.locate-project):not(.locate-lookup) {
+  filter: none;
+  opacity: 1;
 }
 
 .cell.lookup-hit {

@@ -498,10 +498,22 @@
         const col = Number(obj.points[0].col);
         const x = pad + col * (cell + gap);
         const y = pad + row * (cell + gap);
-        const inset = 2.5;
+        // Match screen: ≤8% tint + edge ring + redraw number on top
+        ctx.fillStyle = style.color;
+        ctx.globalAlpha = 0.08;
+        ctx.fillRect(x, y, cell, cell);
+        ctx.globalAlpha = 1;
         ctx.strokeStyle = style.color;
         ctx.lineWidth = Math.max(2, style.width);
-        ctx.strokeRect(x + inset, y + inset, cell - inset * 2, cell - inset * 2);
+        ctx.strokeRect(x + 1, y + 1, cell - 2, cell - 2);
+        const label = obj.points[0].display != null ? String(obj.points[0].display) : "";
+        if (label) {
+          ctx.fillStyle = "#142028";
+          ctx.font = `700 ${Math.max(9, Math.floor(cell * 0.28))}px "IBM Plex Mono", monospace`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(label, x + cell / 2, y + cell / 2);
+        }
       } else if (obj.points.length >= 2) {
         ctx.beginPath();
         obj.points.forEach((pt, i) => {
