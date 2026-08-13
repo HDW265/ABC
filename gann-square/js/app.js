@@ -1405,6 +1405,11 @@
     }
 
     selectPinwheelMethod();
+    let expanded = false;
+    if (ensureRingsForPath(start, target)) {
+      render();
+      expanded = true;
+    }
     enablePinwheelScaffold(false);
 
     const result = GannPinwheel.runFramePath(state.square, start, target);
@@ -1436,7 +1441,8 @@
       );
       if (el) el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
     }
-    showToast(result.message);
+    const expandNote = expanded ? ` · 已扩环至 ${els.rings.value}` : "";
+    showToast(`${result.message}${expandNote}`);
   }
 
   function clearPinwheelPath() {
