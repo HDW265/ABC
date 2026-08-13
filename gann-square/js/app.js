@@ -109,6 +109,16 @@
     pinwheelSummary: $("pinwheelSummary"),
     btnPinwheelDraw: $("btnPinwheelDraw"),
     btnPinwheelClear: $("btnPinwheelClear"),
+    btnPinFrameColor: $("btnPinFrameColor"),
+    btnPinBladeColor: $("btnPinBladeColor"),
+    btnPinFrameDash: $("btnPinFrameDash"),
+    btnPinBladeDash: $("btnPinBladeDash"),
+    btnPinFrameWidth: $("btnPinFrameWidth"),
+    btnPinBladeWidth: $("btnPinBladeWidth"),
+    btnPinStyleReset: $("btnPinStyleReset"),
+    pinFrameSwatch: $("pinFrameSwatch"),
+    pinBladeSwatch: $("pinBladeSwatch"),
+    pinColorPop: $("pinColorPop"),
   };
 
   const STORAGE_KEY = "gann-square-ui-v1";
@@ -1248,6 +1258,51 @@
       : `锚点环：—（总环数 ${rings}，需 ≥ 3）`;
   }
 
+  function syncPinwheelStyleUi() {
+    if (!state.pinwheel || !state.pinwheel.styles) return;
+    const { frame, blade } = state.pinwheel.styles;
+    const dashLabel = (d) => (d === "dash" ? "┅" : d === "dot" ? "···" : "═");
+    if (els.pinFrameSwatch) els.pinFrameSwatch.setAttribute("fill", frame.color);
+    if (els.pinBladeSwatch) els.pinBladeSwatch.setAttribute("fill", blade.color);
+    if (els.btnPinFrameDash) els.btnPinFrameDash.textContent = dashLabel(frame.dash);
+    if (els.btnPinBladeDash) els.btnPinBladeDash.textContent = dashLabel(blade.dash);
+    if (els.btnPinFrameWidth) els.btnPinFrameWidth.textContent = String(frame.width);
+    if (els.btnPinBladeWidth) els.btnPinBladeWidth.textContent = String(blade.width);
+    document.querySelectorAll(".swatch.pinwheel-frame").forEach((el) => {
+      el.style.background = `repeating-linear-gradient(90deg, ${frame.color} 0 4px, transparent 4px 7px)`;
+    });
+    document.querySelectorAll(".swatch.pinwheel-blade").forEach((el) => {
+      el.style.background = `linear-gradient(135deg, transparent 45%, ${blade.color} 45%, ${blade.color} 55%, transparent 55%)`;
+    });
+  }
+
+  function persistPinwheelStyles() {
+    GannPinwheel.saveStyles(state.pinwheel.styles);
+    syncPinwheelStyleUi();
+    if (state.pinwheel.enabled) redrawPinwheelLayer();
+  }
+
+  function openPinColorPop(kind, anchorBtn) {
+    if (!els.pinColorPop) return;
+    state.pinColorTarget = kind;
+    els.pinColorPop.innerHTML = "";
+    const current = state.pinwheel.styles[kind].color;
+    GannPinwheel.COLORS.forEach((color) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.style.background = color;
+      btn.title = color;
+      if (color === current) btn.classList.add("on");
+      btn.addEventListener("click", () => {
+        state.pinwheel.styles[kind].color = color;
+        els.pinColorPop.classList.add("hidden");
+        persistPinwheelStyles();
+      });
+      els.pinColorPop.appendChild(btn);
+    });
+    els.pinColorPop.classList.remove("hidden");
+  }
+
   function syncPinwheelFromUi() {
     if (!state.pinwheel) return;
     if (els.pinwheelShowFrame) state.pinwheel.showFrame = els.pinwheelShowFrame.checked;
@@ -2133,6 +2188,57 @@
     if (els.btnPinwheelClear) {
       els.btnPinwheelClear.addEventListener("click", clearPinwheelScaffold);
     }
+    if (els.btnPinFrameColor) {
+      els.btnPinFrameColor.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openPinColorPop("frame");
+      });
+    }
+    if (els.btnPinBladeColor) {
+      els.btnPinBladeColor.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openPinColorPop("blade");
+      });
+    }
+    if (els.btnPinFrameDash) {
+      els.btnPinFrameDash.addEventListener("click", () => {
+        state.pinwheel.styles.frame.dash = GannPinwheel.cycleDash(state.pinwheel.styles.frame.dash);
+        persistPinwheelStyles();
+      });
+    }
+    if (els.btnPinBladeDash) {
+      els.btnPinBladeDash.addEventListener("click", () => {
+        state.pinwheel.styles.blade.dash = GannPinwheel.cycleDash(state.pinwheel.styles.blade.dash);
+        persistPinwheelStyles();
+      });
+    }
+    if (els.btnPinFrameWidth) {
+      els.btnPinFrameWidth.addEventListener("click", () => {
+        state.pinwheel.styles.frame.width = GannPinwheel.cycleWidth(state.pinwheel.styles.frame.width);
+        persistPinwheelStyles();
+      });
+    }
+    if (els.btnPinBladeWidth) {
+      els.btnPinBladeWidth.addEventListener("click", () => {
+        state.pinwheel.styles.blade.width = GannPinwheel.cycleWidth(state.pinwheel.styles.blade.width);
+        persistPinwheelStyles();
+      });
+    }
+    if (els.btnPinStyleReset) {
+      els.btnPinStyleReset.addEventListener("click", () => {
+        GannPinwheel.resetStyles(state.pinwheel);
+        syncPinwheelStyleUi();
+        if (state.pinwheel.enabled) redrawPinwheelLayer();
+        showToast("风车样式已恢复默认");
+      });
+    }
+    document.addEventListener("click", (ev) => {
+      if (!els.pinColorPop || els.pinColorPop.classList.contains("hidden")) return;
+      if (ev.target.closest("#btnPinFrameColor") || ev.target.closest("#btnPinBladeColor") || ev.target.closest("#pinColorPop")) {
+        return;
+      }
+      els.pinColorPop.classList.add("hidden");
+    });
     if (els.rings) {
       els.rings.addEventListener("input", () => {
         updatePinwheelHints();
@@ -2188,6 +2294,8 @@
     const fromUrl = loadUrlState();
     if (!fromUrl) applyParams({ mode: "price", begin: 1, step: 1, rings: 6 });
     syncPathMethodUi();
+    GannPinwheel.loadStylesInto(state.pinwheel);
+    syncPinwheelStyleUi();
     render();
     updateSnapHint();
     syncDrawToolbar();

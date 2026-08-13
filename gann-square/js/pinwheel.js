@@ -29,13 +29,86 @@
     { dr: -2, dc: -1, id: "b7" },
   ];
 
+  const COLORS = ["#c45c4a", "#2f8f4e", "#1f6f6a", "#1f5f8a", "#b8652f", "#b23a2f", "#142028", "#5a6a72"];
+  const DASH_CYCLE = ["solid", "dash", "dot"];
+  const WIDTH_CYCLE = [1, 1.35, 2, 2.15, 2.5];
+  const STORAGE_STYLE = "gann-pinwheel-style-v1";
+
+  function defaultLineStyle(kind) {
+    if (kind === "blade") {
+      return { color: "#2f8f4e", dash: "solid", width: 2.15 };
+    }
+    return { color: "#c45c4a", dash: "dash", width: 1.35 };
+  }
+
+  function cloneLineStyle(style, kind) {
+    const base = defaultLineStyle(kind);
+    return {
+      color: style && style.color ? style.color : base.color,
+      dash: style && DASH_CYCLE.includes(style.dash) ? style.dash : base.dash,
+      width: style && Number.isFinite(style.width) ? style.width : base.width,
+    };
+  }
+
+  function defaultStyles() {
+    return {
+      frame: defaultLineStyle("frame"),
+      blade: defaultLineStyle("blade"),
+    };
+  }
+
   function createState() {
     return {
       enabled: false,
       showFrame: true,
       showBlades: true,
       showAnchorLabels: false,
+      styles: defaultStyles(),
     };
+  }
+
+  function dashArray(dash, width) {
+    if (dash === "dash") return `${Math.max(5, width * 3.2)} ${Math.max(3.5, width * 2)}`;
+    if (dash === "dot") return `${Math.max(1.2, width)} ${Math.max(3, width * 2.2)}`;
+    return "";
+  }
+
+  function cycleDash(dash) {
+    const i = DASH_CYCLE.indexOf(dash);
+    return DASH_CYCLE[(i + 1) % DASH_CYCLE.length];
+  }
+
+  function cycleWidth(width) {
+    const i = WIDTH_CYCLE.findIndex((w) => Math.abs(w - width) < 0.01);
+    return WIDTH_CYCLE[(i + 1) % WIDTH_CYCLE.length];
+  }
+
+  function saveStyles(styles) {
+    try {
+      localStorage.setItem(STORAGE_STYLE, JSON.stringify(styles || defaultStyles()));
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
+  function loadStylesInto(state) {
+    try {
+      const raw = localStorage.getItem(STORAGE_STYLE);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      state.styles = {
+        frame: cloneLineStyle(data.frame, "frame"),
+        blade: cloneLineStyle(data.blade, "blade"),
+      };
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
+  function resetStyles(state) {
+    state.styles = defaultStyles();
+    saveStyles(state.styles);
+    return state.styles;
   }
 
   /** User-facing anchor rings: 3,5,7,… ≤ N */
@@ -132,44 +205,46 @@
 
     const model = buildModel(square);
     const ns = "http://www.w3.org/2000/svg";
+    const styles = state.styles || defaultStyles();
 
-    const drawRay = (ray, className) => {
+    const drawRay = (ray, className, lineStyle) => {
       const centers = ray.points.map((p) => cellCenterEl(squareEl, stackEl, p.row, p.col));
       if (centers.some((c) => !c) || centers.length < 2) return;
       const poly = document.createElementNS(ns, "polyline");
       poly.setAttribute("points", centers.map((c) => `${c.x},${c.y}`).join(" "));
       poly.setAttribute("class", className);
+      poly.setAttribute("fill", "none");
+      poly.setAttribute("stroke", lineStyle.color);
+      poly.setAttribute("stroke-width", String(lineStyle.width));
+      poly.setAttribute("stroke-linecap", "round");
+      poly.setAttribute("stroke-linejoin", "round");
+      const dash = dashArray(lineStyle.dash, lineStyle.width);
+      if (dash) poly.setAttribute("stroke-dasharray", dash);
+      else poly.removeAttribute("stroke-dasharray");
       poly.style.pointerEvents = "none";
       overlay.appendChild(poly);
     };
 
     if (state.showFrame) {
-      model.frame.forEach((ray) => drawRay(ray, "pinwheel-frame"));
+      model.frame.forEach((ray) => drawRay(ray, "pinwheel-frame", styles.frame));
     }
 
     if (state.showBlades) {
       model.blades.forEach((ray) => {
-        drawRay(ray, "pinwheel-blade");
-        // Hollow anchors on non-center points
+        drawRay(ray, "pinwheel-blade", styles.blade);
+        // No marker circles — digits stay plain on the grid.
+        if (!state.showAnchorLabels) return;
         ray.points.slice(1).forEach((p) => {
           const c = cellCenterEl(squareEl, stackEl, p.row, p.col);
           if (!c) return;
-          const circle = document.createElementNS(ns, "circle");
-          circle.setAttribute("cx", c.x);
-          circle.setAttribute("cy", c.y);
-          circle.setAttribute("r", String(c.r));
-          circle.setAttribute("class", "pinwheel-anchor");
-          circle.style.pointerEvents = "none";
-          overlay.appendChild(circle);
-          if (state.showAnchorLabels) {
-            const t = document.createElementNS(ns, "text");
-            t.setAttribute("x", c.x);
-            t.setAttribute("y", c.y - c.r - 3);
-            t.setAttribute("class", "pinwheel-anchor-label");
-            t.textContent = String(p.display || p.value);
-            t.style.pointerEvents = "none";
-            overlay.appendChild(t);
-          }
+          const t = document.createElementNS(ns, "text");
+          t.setAttribute("x", c.x);
+          t.setAttribute("y", c.y - Math.max(8, c.r));
+          t.setAttribute("class", "pinwheel-anchor-label");
+          t.setAttribute("fill", styles.blade.color);
+          t.textContent = String(p.display || p.value);
+          t.style.pointerEvents = "none";
+          overlay.appendChild(t);
         });
       });
     }
@@ -180,7 +255,20 @@
   global.GannPinwheel = {
     FRAME_DIRS,
     BLADE_DIRS,
+    COLORS,
+    DASH_CYCLE,
+    WIDTH_CYCLE,
+    STORAGE_STYLE,
     createState,
+    defaultStyles,
+    defaultLineStyle,
+    cloneLineStyle,
+    dashArray,
+    cycleDash,
+    cycleWidth,
+    saveStyles,
+    loadStylesInto,
+    resetStyles,
     anchorUserRings,
     anchorCodeRings,
     buildModel,

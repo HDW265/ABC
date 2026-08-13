@@ -790,32 +790,23 @@ input[type="range"] {
   z-index: 3;
 }
 
-.pinwheel-overlay .pinwheel-frame {
+.pinwheel-overlay .pinwheel-frame,
+.pinwheel-overlay .pinwheel-blade {
+  /* stroke attrs set inline from user styles */
   fill: none;
-  stroke: #c45c4a;
-  stroke-width: 1.35;
-  stroke-dasharray: 6 4;
   stroke-linecap: round;
-  stroke-opacity: 0.82;
+  stroke-linejoin: round;
+}
+
+.pinwheel-overlay .pinwheel-frame {
+  stroke-opacity: 0.88;
 }
 
 .pinwheel-overlay .pinwheel-blade {
-  fill: none;
-  stroke: #2f8f4e;
-  stroke-width: 2.15;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-opacity: 0.92;
-}
-
-.pinwheel-overlay .pinwheel-anchor {
-  fill: none;
-  stroke: #2f8f4e;
-  stroke-width: 1.75;
+  stroke-opacity: 0.95;
 }
 
 .pinwheel-overlay .pinwheel-anchor-label {
-  fill: #1a3d28;
   font-family: var(--font-mono);
   font-size: 0.62rem;
   font-weight: 600;
@@ -827,6 +818,34 @@ input[type="range"] {
   font-size: 0.92rem;
   font-weight: 600;
   color: var(--ink);
+}
+
+.pinwheel-style-rows {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.55rem 0 0.35rem;
+}
+
+.pinwheel-style-row {
+  display: grid;
+  grid-template-columns: 3.2rem auto auto auto;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.pinwheel-style-label {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.pinwheel-style-actions {
+  margin-bottom: 0.45rem;
+}
+
+.pinwheel-color-pop {
+  position: relative;
+  margin: 0.25rem 0 0.55rem;
+  z-index: 8;
 }
 
 .path-overlay .path-arrow {
