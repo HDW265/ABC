@@ -112,6 +112,11 @@
     pinwheelShowFrame: $("pinwheelShowFrame"),
     pinwheelShowBlades: $("pinwheelShowBlades"),
     pinwheelShowLabels: $("pinwheelShowLabels"),
+    pinwheelShowSectorLabels: $("pinwheelShowSectorLabels"),
+    pinwheelShowTrackLabels: $("pinwheelShowTrackLabels"),
+    pinwheelSectorBtns: $("pinwheelSectorBtns"),
+    pinwheelSectorHint: $("pinwheelSectorHint"),
+    btnPinwheelSectorClear: $("btnPinwheelSectorClear"),
     pinwheelAnchorHint: $("pinwheelAnchorHint"),
     pinwheelSummary: $("pinwheelSummary"),
     pinwheelStart: $("pinwheelStart"),
@@ -649,6 +654,15 @@
     const el = els.square.querySelector(`[data-row="${cell.row}"][data-col="${cell.col}"]`);
     if (el) el.classList.add("selected");
     updateReadout(cell);
+    if (
+      !options.skipSector &&
+      state.pinwheel.enabled &&
+      currentPathMethod() === "pinwheel" &&
+      cell
+    ) {
+      const sector = GannPinwheel.sectorForCell(state.square, cell);
+      if (sector) selectPinwheelSector(sector.id, { quiet: true });
+    }
   }
 
   function updateReadout(cell) {
@@ -1336,6 +1350,86 @@
     if (els.pinwheelShowFrame) state.pinwheel.showFrame = els.pinwheelShowFrame.checked;
     if (els.pinwheelShowBlades) state.pinwheel.showBlades = els.pinwheelShowBlades.checked;
     if (els.pinwheelShowLabels) state.pinwheel.showAnchorLabels = els.pinwheelShowLabels.checked;
+    if (els.pinwheelShowSectorLabels) {
+      state.pinwheel.showSectorLabels = els.pinwheelShowSectorLabels.checked;
+    }
+    if (els.pinwheelShowTrackLabels) {
+      state.pinwheel.showTrackLabels = els.pinwheelShowTrackLabels.checked;
+    }
+  }
+
+  function applyPinwheelSectorHighlights() {
+    if (!els.square) return;
+    els.square.querySelectorAll(".cell.pinwheel-sector").forEach((el) => {
+      el.classList.remove("pinwheel-sector", "pinwheel-sector-axis");
+    });
+    if (!state.pinwheel.enabled || !state.pinwheel.selectedSector || !state.square) return;
+    const sector = GannPinwheel.sectorById(state.pinwheel.selectedSector);
+    if (!sector) return;
+    const cells = GannPinwheel.cellsInSector(state.square, sector.id);
+    cells.forEach((cell) => {
+      const el = els.square.querySelector(`[data-row="${cell.row}"][data-col="${cell.col}"]`);
+      if (!el) return;
+      el.classList.add("pinwheel-sector");
+      if (cell.axis === sector.frameAxis) el.classList.add("pinwheel-sector-axis");
+    });
+  }
+
+  function updatePinwheelSectorHint() {
+    if (!els.pinwheelSectorHint) return;
+    const id = state.pinwheel.selectedSector;
+    const sector = id ? GannPinwheel.sectorById(id) : null;
+    if (!sector) {
+      els.pinwheelSectorHint.textContent = "未选叶区 · 点格子或上方按钮";
+      return;
+    }
+    els.pinwheelSectorHint.textContent = `风车叶区 · ${sector.name} · ${sector.tracksLabel} · 骨架 ${sector.frameAxis.toUpperCase()}`;
+  }
+
+  function syncPinwheelSectorButtons() {
+    if (!els.pinwheelSectorBtns) return;
+    els.pinwheelSectorBtns.querySelectorAll("[data-sector]").forEach((btn) => {
+      btn.classList.toggle("on", btn.getAttribute("data-sector") === state.pinwheel.selectedSector);
+    });
+  }
+
+  function buildPinwheelSectorButtons() {
+    if (!els.pinwheelSectorBtns) return;
+    els.pinwheelSectorBtns.innerHTML = "";
+    GannPinwheel.SECTORS.forEach((sector) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn ghost compact";
+      btn.setAttribute("data-sector", sector.id);
+      btn.title = `${sector.name} · ${sector.tracksLabel}`;
+      btn.textContent = sector.name;
+      btn.addEventListener("click", () => {
+        selectPinwheelMethod();
+        enablePinwheelScaffold(false);
+        selectPinwheelSector(sector.id);
+      });
+      els.pinwheelSectorBtns.appendChild(btn);
+    });
+    syncPinwheelSectorButtons();
+  }
+
+  function selectPinwheelSector(sectorId, options = {}) {
+    const sector = GannPinwheel.sectorById(sectorId);
+    if (!sector) return;
+    state.pinwheel.selectedSector = sector.id;
+    updatePinwheelSectorHint();
+    syncPinwheelSectorButtons();
+    redrawPinwheelLayer();
+    if (!options.quiet) showToast(`叶区 · ${sector.name} · ${sector.tracksLabel}`);
+  }
+
+  function clearPinwheelSector(announce) {
+    state.pinwheel.selectedSector = null;
+    updatePinwheelSectorHint();
+    syncPinwheelSectorButtons();
+    applyPinwheelSectorHighlights();
+    redrawPinwheelLayer();
+    if (announce) showToast("已清除叶区高亮");
   }
 
   function redrawPinwheelLayer() {
@@ -1351,10 +1445,17 @@
       stackEl: els.squareStack,
       square: state.square,
     });
+    applyPinwheelSectorHighlights();
     if (els.pinwheelSummary && state.pinwheel.enabled && model) {
-      els.pinwheelSummary.textContent = model.label;
+      const sector = state.pinwheel.selectedSector
+        ? GannPinwheel.sectorById(state.pinwheel.selectedSector)
+        : null;
+      els.pinwheelSummary.textContent = sector
+        ? `${model.label} · 叶区 ${sector.name}`
+        : model.label;
     }
     updatePinwheelHints();
+    updatePinwheelSectorHint();
   }
 
   function enablePinwheelScaffold(announce) {
@@ -1368,6 +1469,7 @@
 
   function clearPinwheelScaffold() {
     state.pinwheel.enabled = false;
+    state.pinwheel.selectedSector = null;
     if (els.pinwheelOverlay) els.pinwheelOverlay.innerHTML = "";
     if (els.pinwheelSummary) els.pinwheelSummary.textContent = "尚未绘制风车架构";
     if (state.pathResult && state.pathResult.kind === "pinwheel-frame") {
@@ -1376,6 +1478,9 @@
       state.pathActiveStep = null;
       updatePathTable(null);
     }
+    applyPinwheelSectorHighlights();
+    updatePinwheelSectorHint();
+    syncPinwheelSectorButtons();
     updatePinwheelHints();
     redrawPathAndProject();
     showToast("已清除风车层");
@@ -2290,7 +2395,7 @@
     if (els.pathOverlayCompare) {
       els.pathOverlayCompare.addEventListener("change", () => redrawPathAndProject());
     }
-    ["pinwheelShowFrame", "pinwheelShowBlades", "pinwheelShowLabels"].forEach((id) => {
+    ["pinwheelShowFrame", "pinwheelShowBlades", "pinwheelShowLabels", "pinwheelShowSectorLabels", "pinwheelShowTrackLabels"].forEach((id) => {
       if (!els[id]) return;
       els[id].addEventListener("change", () => {
         if (state.pinwheel.enabled) redrawPinwheelLayer();
@@ -2301,6 +2406,9 @@
     }
     if (els.btnPinwheelClear) {
       els.btnPinwheelClear.addEventListener("click", clearPinwheelScaffold);
+    }
+    if (els.btnPinwheelSectorClear) {
+      els.btnPinwheelSectorClear.addEventListener("click", () => clearPinwheelSector(true));
     }
     if (els.btnPinwheelRun) {
       els.btnPinwheelRun.addEventListener("click", runPinwheelFramePath);
@@ -2416,6 +2524,7 @@
     syncPathMethodUi();
     GannPinwheel.loadStylesInto(state.pinwheel);
     syncPinwheelStyleUi();
+    buildPinwheelSectorButtons();
     render();
     updateSnapHint();
     syncDrawToolbar();

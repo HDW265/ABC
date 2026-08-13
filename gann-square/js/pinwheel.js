@@ -63,6 +63,9 @@
       showFrame: true,
       showBlades: true,
       showAnchorLabels: false,
+      showSectorLabels: true,
+      showTrackLabels: true,
+      selectedSector: null,
       styles: defaultStyles(),
     };
   }
@@ -249,7 +252,233 @@
       });
     }
 
+    if (state.showTrackLabels) {
+      TRACKS.forEach((track) => {
+        track.bladeIds.forEach((bladeId) => {
+          const ray = model.blades.find((b) => b.id === bladeId);
+          if (!ray || ray.points.length < 2) return;
+          const tip = ray.points[ray.points.length - 1];
+          const c = cellCenterEl(squareEl, stackEl, tip.row, tip.col);
+          if (!c) return;
+          const t = document.createElementNS(ns, "text");
+          t.setAttribute("x", c.x);
+          t.setAttribute("y", c.y);
+          t.setAttribute("class", "pinwheel-track-label");
+          t.setAttribute("fill", "#b23a2f");
+          t.textContent = String(track.id);
+          t.style.pointerEvents = "none";
+          overlay.appendChild(t);
+        });
+      });
+    }
+
+    if (state.showSectorLabels || state.selectedSector) {
+      SECTORS.forEach((sector) => {
+        const anchor = sectorLabelAnchor(square, sector);
+        if (!anchor) return;
+        const c = cellCenterEl(squareEl, stackEl, anchor.row, anchor.col);
+        if (!c) return;
+        const selected = state.selectedSector === sector.id;
+        if (!state.showSectorLabels && !selected) return;
+
+        const g = document.createElementNS(ns, "g");
+        g.setAttribute("class", selected ? "pinwheel-sector-label on" : "pinwheel-sector-label");
+        g.style.pointerEvents = "none";
+
+        const main = document.createElementNS(ns, "text");
+        main.setAttribute("x", c.x);
+        main.setAttribute("y", c.y - 4);
+        main.setAttribute("class", "pinwheel-sector-name");
+        main.textContent = sector.name;
+        g.appendChild(main);
+
+        const sub = document.createElementNS(ns, "text");
+        sub.setAttribute("x", c.x);
+        sub.setAttribute("y", c.y + 12);
+        sub.setAttribute("class", "pinwheel-sector-sub");
+        sub.textContent = sector.tracksLabel;
+        g.appendChild(sub);
+
+        overlay.appendChild(g);
+      });
+    }
+
     return model;
+  }
+
+  /**
+   * Phase 3: four blade diameters (轨迹1–4) and eight sectors between them.
+   * Bearings are degrees clockwise from North (screen up = -row), via atan2(dc, -dr).
+   *
+   * Track 1: b5(-2,+1) ↔ b4(+2,-1)  — 16-63-142 / 24-79-166
+   * Track 2: b1(-1,+2) ↔ b0(+1,-2)  — 18-67-148 / 10-51-124
+   * Track 3: b3(-1,-2) ↔ b2(+1,+2)  — 12-55-130 / 20-71-154
+   * Track 4: b7(-2,-1) ↔ b6(+2,+1)  — 14-59-136 / 22-75-160
+   */
+  const TRACKS = [
+    { id: 1, bladeIds: ["b5", "b4"], label: "轨迹1" },
+    { id: 2, bladeIds: ["b1", "b0"], label: "轨迹2" },
+    { id: 3, bladeIds: ["b3", "b2"], label: "轨迹3" },
+    { id: 4, bladeIds: ["b7", "b6"], label: "轨迹4" },
+  ];
+
+  function normalizeDeg(deg) {
+    let d = deg % 360;
+    if (d < 0) d += 360;
+    return d;
+  }
+
+  function bladeBearing(dr, dc) {
+    return normalizeDeg((Math.atan2(dc, -dr) * 180) / Math.PI);
+  }
+
+  const TRACK_BEARING = {
+    t1n: bladeBearing(-2, 1),
+    t2n: bladeBearing(-1, 2),
+    t3e: bladeBearing(1, 2),
+    t4s: bladeBearing(2, 1),
+    t1s: bladeBearing(2, -1),
+    t2w: bladeBearing(1, -2),
+    t3w: bladeBearing(-1, -2),
+    t4n: bladeBearing(-2, -1),
+  };
+
+  /** Half-open wedges [fromDeg, toDeg) clockwise from North; wrap crosses 0°. */
+  const SECTORS = [
+    {
+      id: "n",
+      name: "北",
+      tracksLabel: "夹轨4–1",
+      trackPair: [4, 1],
+      frameAxis: "n",
+      fromDeg: TRACK_BEARING.t4n,
+      toDeg: TRACK_BEARING.t1n,
+      wrap: true,
+    },
+    {
+      id: "ne",
+      name: "东北",
+      tracksLabel: "夹轨1–2",
+      trackPair: [1, 2],
+      frameAxis: "ne",
+      fromDeg: TRACK_BEARING.t1n,
+      toDeg: TRACK_BEARING.t2n,
+      wrap: false,
+    },
+    {
+      id: "e",
+      name: "东",
+      tracksLabel: "夹轨2–3",
+      trackPair: [2, 3],
+      frameAxis: "e",
+      fromDeg: TRACK_BEARING.t2n,
+      toDeg: TRACK_BEARING.t3e,
+      wrap: false,
+    },
+    {
+      id: "se",
+      name: "东南",
+      tracksLabel: "夹轨3–4",
+      trackPair: [3, 4],
+      frameAxis: "se",
+      fromDeg: TRACK_BEARING.t3e,
+      toDeg: TRACK_BEARING.t4s,
+      wrap: false,
+    },
+    {
+      id: "s",
+      name: "南",
+      tracksLabel: "夹轨4–1",
+      trackPair: [4, 1],
+      frameAxis: "s",
+      fromDeg: TRACK_BEARING.t4s,
+      toDeg: TRACK_BEARING.t1s,
+      wrap: false,
+    },
+    {
+      id: "sw",
+      name: "西南",
+      tracksLabel: "夹轨1–2",
+      trackPair: [1, 2],
+      frameAxis: "sw",
+      fromDeg: TRACK_BEARING.t1s,
+      toDeg: TRACK_BEARING.t2w,
+      wrap: false,
+    },
+    {
+      id: "w",
+      name: "西",
+      tracksLabel: "夹轨2–3",
+      trackPair: [2, 3],
+      frameAxis: "w",
+      fromDeg: TRACK_BEARING.t2w,
+      toDeg: TRACK_BEARING.t3w,
+      wrap: false,
+    },
+    {
+      id: "nw",
+      name: "西北",
+      tracksLabel: "夹轨3–4",
+      trackPair: [3, 4],
+      frameAxis: "nw",
+      fromDeg: TRACK_BEARING.t3w,
+      toDeg: TRACK_BEARING.t4n,
+      wrap: false,
+    },
+  ];
+
+  function cellBearingDeg(square, cell) {
+    if (!square || !cell) return null;
+    const dr = cell.row - square.cx;
+    const dc = cell.col - square.cy;
+    if (dr === 0 && dc === 0) return null;
+    return normalizeDeg((Math.atan2(dc, -dr) * 180) / Math.PI);
+  }
+
+  function bearingInSector(deg, sector) {
+    if (!Number.isFinite(deg) || !sector) return false;
+    const d = normalizeDeg(deg);
+    const from = normalizeDeg(sector.fromDeg);
+    const to = normalizeDeg(sector.toDeg);
+    if (sector.wrap || from > to) return d >= from || d < to;
+    return d >= from && d < to;
+  }
+
+  function sectorById(id) {
+    return SECTORS.find((s) => s.id === id) || null;
+  }
+
+  function sectorForCell(square, cell) {
+    const deg = cellBearingDeg(square, cell);
+    if (deg == null) return null;
+    return SECTORS.find((s) => bearingInSector(deg, s)) || null;
+  }
+
+  function cellsInSector(square, sectorId) {
+    const sector = sectorById(sectorId);
+    if (!square || !sector) return [];
+    const out = [];
+    for (let r = 0; r < square.size; r += 1) {
+      for (let c = 0; c < square.size; c += 1) {
+        const cell = square.meta[r][c];
+        if (cell.ring === 0) continue;
+        if (sectorForCell(square, cell)?.id === sector.id) out.push(cell);
+      }
+    }
+    return out;
+  }
+
+  function trackById(id) {
+    return TRACKS.find((t) => t.id === id) || null;
+  }
+
+  function sectorLabelAnchor(square, sector) {
+    if (!square || !sector) return null;
+    const axis = FRAME_DIRS.find((d) => d.id === sector.frameAxis);
+    if (!axis) return null;
+    const R = Math.max(1, square.rings - 1);
+    const k = Math.max(1, Math.floor(R * 0.62));
+    return cellAt(square, square.cx + axis.dr * k, square.cy + axis.dc * k);
   }
 
   const OPPOSITE_RAY = {
@@ -307,7 +536,7 @@
       return {
         ok: false,
         reason: "not-on-frame",
-        message: "起点不在骨架线（十字/对角）上，暂不跑图（叶线跑图见阶段三）",
+        message: "起点不在骨架线（十字/对角）上，暂不跑图（叶区走线见阶段四）",
         steps: [],
       };
     }
@@ -372,6 +601,8 @@
   global.GannPinwheel = {
     FRAME_DIRS,
     BLADE_DIRS,
+    TRACKS,
+    SECTORS,
     OPPOSITE_RAY,
     AXIS_FAMILY,
     COLORS,
@@ -397,5 +628,13 @@
     cellOnRay,
     isOnFrame,
     runFramePath,
+    normalizeDeg,
+    bladeBearing,
+    cellBearingDeg,
+    sectorById,
+    sectorForCell,
+    cellsInSector,
+    trackById,
+    sectorLabelAnchor,
   };
 })(window);

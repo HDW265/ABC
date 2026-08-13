@@ -813,6 +813,77 @@ input[type="range"] {
   text-anchor: middle;
 }
 
+.pinwheel-overlay .pinwheel-track-label {
+  font-family: var(--font-display, "Source Han Serif SC", "Noto Serif SC", serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke fill;
+  stroke: rgba(255, 252, 248, 0.92);
+  stroke-width: 3px;
+}
+
+.pinwheel-overlay .pinwheel-sector-label .pinwheel-sector-name {
+  font-family: var(--font-display, "Source Han Serif SC", "Noto Serif SC", serif);
+  font-size: 0.95rem;
+  font-weight: 700;
+  fill: #1f5f8a;
+  text-anchor: middle;
+  paint-order: stroke fill;
+  stroke: rgba(255, 252, 248, 0.9);
+  stroke-width: 3px;
+}
+
+.pinwheel-overlay .pinwheel-sector-label .pinwheel-sector-sub {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 600;
+  fill: #5a6a72;
+  text-anchor: middle;
+  paint-order: stroke fill;
+  stroke: rgba(255, 252, 248, 0.88);
+  stroke-width: 2.5px;
+}
+
+.pinwheel-overlay .pinwheel-sector-label.on .pinwheel-sector-name {
+  fill: #0f6b4c;
+  font-size: 1.08rem;
+}
+
+.pinwheel-overlay .pinwheel-sector-label.on .pinwheel-sector-sub {
+  fill: #1f6f6a;
+}
+
+.cell.pinwheel-sector {
+  background: rgba(47, 143, 78, 0.28) !important;
+  box-shadow: inset 0 0 0 1.5px rgba(47, 143, 78, 0.55);
+}
+
+.cell.pinwheel-sector.pinwheel-sector-axis {
+  background: rgba(47, 143, 78, 0.42) !important;
+  box-shadow: inset 0 0 0 2px rgba(15, 107, 76, 0.7);
+}
+
+.pinwheel-sector-btns {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.3rem;
+  margin: 0.45rem 0 0.35rem;
+}
+
+.pinwheel-sector-btns .btn {
+  font-size: 0.78rem;
+  padding: 0.28rem 0.2rem;
+}
+
+.pinwheel-sector-btns .btn.on {
+  background: rgba(47, 143, 78, 0.18);
+  border-color: #2f8f4e;
+  color: #0f6b4c;
+  font-weight: 700;
+}
+
 .path-subhead {
   margin: 0.85rem 0 0.45rem;
   font-size: 0.92rem;
