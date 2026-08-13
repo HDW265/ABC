@@ -780,6 +780,55 @@ input[type="range"] {
   stroke-linejoin: round;
 }
 
+.pinwheel-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 3;
+}
+
+.pinwheel-overlay .pinwheel-frame {
+  fill: none;
+  stroke: #c45c4a;
+  stroke-width: 1.35;
+  stroke-dasharray: 6 4;
+  stroke-linecap: round;
+  stroke-opacity: 0.82;
+}
+
+.pinwheel-overlay .pinwheel-blade {
+  fill: none;
+  stroke: #2f8f4e;
+  stroke-width: 2.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-opacity: 0.92;
+}
+
+.pinwheel-overlay .pinwheel-anchor {
+  fill: none;
+  stroke: #2f8f4e;
+  stroke-width: 1.75;
+}
+
+.pinwheel-overlay .pinwheel-anchor-label {
+  fill: #1a3d28;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.path-subhead {
+  margin: 0.85rem 0 0.45rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
 .path-overlay .path-arrow {
   fill: currentColor;
 }
@@ -1345,6 +1394,12 @@ input[type="range"] {
 }
 .swatch.path180 {
   background: repeating-linear-gradient(90deg, #1f5f8a 0 4px, transparent 4px 7px);
+}
+.swatch.pinwheel-frame {
+  background: repeating-linear-gradient(90deg, #c45c4a 0 4px, transparent 4px 7px);
+}
+.swatch.pinwheel-blade {
+  background: linear-gradient(135deg, transparent 45%, #2f8f4e 45%, #2f8f4e 55%, transparent 55%);
 }
 .swatch.project-dot {
   background: transparent;
