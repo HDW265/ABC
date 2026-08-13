@@ -98,6 +98,17 @@
     btnDrawCollapse: $("btnDrawCollapse"),
     drawOverlay: $("drawOverlay"),
     drawHud: $("drawHud"),
+    pinwheelOverlay: $("pinwheelOverlay"),
+    constellateControls: $("constellateControls"),
+    pinwheelControls: $("pinwheelControls"),
+    pathOverlayCompare: $("pathOverlayCompare"),
+    pinwheelShowFrame: $("pinwheelShowFrame"),
+    pinwheelShowBlades: $("pinwheelShowBlades"),
+    pinwheelShowLabels: $("pinwheelShowLabels"),
+    pinwheelAnchorHint: $("pinwheelAnchorHint"),
+    pinwheelSummary: $("pinwheelSummary"),
+    btnPinwheelDraw: $("btnPinwheelDraw"),
+    btnPinwheelClear: $("btnPinwheelClear"),
   };
 
   const STORAGE_KEY = "gann-square-ui-v1";
@@ -130,6 +141,8 @@
     locateKey: null,
     locateMode: null,
     draw: GannDraw.createState(),
+    pinwheel: GannPinwheel.createState(),
+    pathMethod: "constellate",
   };
 
   function loadPrefs() {
@@ -554,7 +567,6 @@
 
     requestAnimationFrame(() => {
       redrawPathAndProject();
-      redrawDrawLayer();
     });
   }
 
@@ -1188,14 +1200,95 @@
   }
 
   function redrawPathAndProject() {
-    if (state.pathResult) drawPathOverlay(state.pathResult);
+    if (shouldShowConstellateLayers() && state.pathResult) drawPathOverlay(state.pathResult);
     else {
       clearPathOverlay();
       preparePathOverlaySize();
-      drawProjectOverlay();
-      drawLocateOverlay();
+      if (shouldShowConstellateLayers()) {
+        drawProjectOverlay();
+        drawLocateOverlay();
+      } else {
+        drawLocateOverlay();
+      }
     }
     redrawDrawLayer();
+    redrawPinwheelLayer();
+  }
+
+  function currentPathMethod() {
+    const checked = document.querySelector('input[name="pathMethod"]:checked');
+    return checked ? checked.value : state.pathMethod || "constellate";
+  }
+
+  function shouldShowConstellateLayers() {
+    return currentPathMethod() === "constellate" || !!(els.pathOverlayCompare && els.pathOverlayCompare.checked);
+  }
+
+  function shouldShowPinwheelLayer() {
+    return (
+      state.pinwheel.enabled &&
+      (currentPathMethod() === "pinwheel" || !!(els.pathOverlayCompare && els.pathOverlayCompare.checked))
+    );
+  }
+
+  function syncPathMethodUi() {
+    state.pathMethod = currentPathMethod();
+    const isPin = state.pathMethod === "pinwheel";
+    if (els.constellateControls) els.constellateControls.classList.toggle("hidden", isPin);
+    if (els.pinwheelControls) els.pinwheelControls.classList.toggle("hidden", !isPin);
+    updatePinwheelHints();
+  }
+
+  function updatePinwheelHints() {
+    if (!els.pinwheelAnchorHint) return;
+    const rings = clampRings(els.rings.value);
+    const anchors = GannPinwheel.anchorUserRings(rings);
+    els.pinwheelAnchorHint.textContent = anchors.length
+      ? `锚点环：${anchors.join(", ")}（总环数 ${rings}）`
+      : `锚点环：—（总环数 ${rings}，需 ≥ 3）`;
+  }
+
+  function syncPinwheelFromUi() {
+    if (!state.pinwheel) return;
+    if (els.pinwheelShowFrame) state.pinwheel.showFrame = els.pinwheelShowFrame.checked;
+    if (els.pinwheelShowBlades) state.pinwheel.showBlades = els.pinwheelShowBlades.checked;
+    if (els.pinwheelShowLabels) state.pinwheel.showAnchorLabels = els.pinwheelShowLabels.checked;
+  }
+
+  function redrawPinwheelLayer() {
+    if (!els.pinwheelOverlay || !state.square) return;
+    syncPinwheelFromUi();
+    const drawState = {
+      ...state.pinwheel,
+      enabled: shouldShowPinwheelLayer(),
+    };
+    const model = GannPinwheel.render(drawState, {
+      overlay: els.pinwheelOverlay,
+      squareEl: els.square,
+      stackEl: els.squareStack,
+      square: state.square,
+    });
+    if (els.pinwheelSummary && state.pinwheel.enabled && model) {
+      els.pinwheelSummary.textContent = model.label;
+    }
+    updatePinwheelHints();
+  }
+
+  function enablePinwheelScaffold(announce) {
+    state.pinwheel.enabled = true;
+    if (els.hlCross) els.hlCross.checked = true;
+    if (els.hlDiag) els.hlDiag.checked = true;
+    redrawPinwheelLayer();
+    scheduleRender();
+    if (announce) showToast("风车架构已绘制");
+  }
+
+  function clearPinwheelScaffold() {
+    state.pinwheel.enabled = false;
+    if (els.pinwheelOverlay) els.pinwheelOverlay.innerHTML = "";
+    if (els.pinwheelSummary) els.pinwheelSummary.textContent = "尚未绘制风车架构";
+    updatePinwheelHints();
+    showToast("已清除风车层");
   }
 
   function redrawDrawLayer() {
@@ -2015,6 +2108,39 @@
     els.btnPathClear.addEventListener("click", clearPath);
     els.btnPathCopy.addEventListener("click", copyPath);
     els.btnPathExport.addEventListener("click", exportPathCsv);
+
+    document.querySelectorAll('input[name="pathMethod"]').forEach((el) => {
+      el.addEventListener("change", () => {
+        syncPathMethodUi();
+        if (currentPathMethod() === "pinwheel") {
+          enablePinwheelScaffold(false);
+        }
+        redrawPathAndProject();
+      });
+    });
+    if (els.pathOverlayCompare) {
+      els.pathOverlayCompare.addEventListener("change", () => redrawPathAndProject());
+    }
+    ["pinwheelShowFrame", "pinwheelShowBlades", "pinwheelShowLabels"].forEach((id) => {
+      if (!els[id]) return;
+      els[id].addEventListener("change", () => {
+        if (state.pinwheel.enabled) redrawPinwheelLayer();
+      });
+    });
+    if (els.btnPinwheelDraw) {
+      els.btnPinwheelDraw.addEventListener("click", () => enablePinwheelScaffold(true));
+    }
+    if (els.btnPinwheelClear) {
+      els.btnPinwheelClear.addEventListener("click", clearPinwheelScaffold);
+    }
+    if (els.rings) {
+      els.rings.addEventListener("input", () => {
+        updatePinwheelHints();
+        if (state.pinwheel.enabled) {
+          /* full render will refresh pinwheel via rAF */
+        }
+      });
+    }
     if (els.btnProjectCopy) {
       els.btnProjectCopy.addEventListener("click", async () => {
         if (!state.projectResult?.secretLine) return;
@@ -2061,6 +2187,7 @@
     bindPanelResizers();
     const fromUrl = loadUrlState();
     if (!fromUrl) applyParams({ mode: "price", begin: 1, step: 1, rings: 6 });
+    syncPathMethodUi();
     render();
     updateSnapHint();
     syncDrawToolbar();
