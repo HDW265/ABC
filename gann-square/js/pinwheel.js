@@ -537,6 +537,233 @@
     return !!(cell && (cell.isCross || cell.isDiag));
   }
 
+  function trackIdForCell(square, cell) {
+    if (!square || !cell || cell.ring === 0) return null;
+    if (!isOnBlade(square, cell)) return null;
+    const dr = cell.row - square.cx;
+    const dc = cell.col - square.cy;
+    for (let t = 0; t < TRACKS.length; t += 1) {
+      const track = TRACKS[t];
+      for (let i = 0; i < track.bladeIds.length; i += 1) {
+        const d = BLADE_DIRS.find((x) => x.id === track.bladeIds[i]);
+        if (!d || d.dr === 0 || d.dc === 0) continue;
+        if (dr % d.dr !== 0 || dc % d.dc !== 0) continue;
+        const kr = dr / d.dr;
+        const kc = dc / d.dc;
+        if (kr === kc && kr > 0 && Number.isInteger(kr)) return track.id;
+      }
+    }
+    return null;
+  }
+
+  const PATH_FAMILY_META = {
+    ew: { id: "ew", label: "水平180°", move: "180-h" },
+    ns: { id: "ns", label: "垂直180°", move: "180-v" },
+    nesw: { id: "nesw", label: "45°对角", move: "45" },
+    nwse: { id: "nwse", label: "45°对角", move: "45" },
+  };
+
+  /**
+   * Route start cell: frame → Phase 2; blade/sector → Phase 4 family.
+   * Frame wins over blade when a cell is both (should not happen for ±1/±2).
+   */
+  function resolvePathRoute(square, cell) {
+    if (!cell) return { route: "none", reason: "no-cell" };
+    if (cell.ring === 0) return { route: "none", reason: "center" };
+    if (isOnFrame(cell)) return { route: "frame" };
+    const trackId = trackIdForCell(square, cell);
+    if (trackId === 1 || trackId === 2) {
+      return { route: "sector", family: "nesw", via: "blade", trackId };
+    }
+    if (trackId === 3 || trackId === 4) {
+      return { route: "sector", family: "nwse", via: "blade", trackId };
+    }
+    const sector = sectorForCell(square, cell);
+    if (!sector) return { route: "none", reason: "unclassified" };
+    if (sector.id === "e" || sector.id === "w") {
+      return { route: "sector", family: "ew", via: "sector", sectorId: sector.id };
+    }
+    if (sector.id === "n" || sector.id === "s") {
+      return { route: "sector", family: "ns", via: "sector", sectorId: sector.id };
+    }
+    if (sector.id === "ne" || sector.id === "sw") {
+      return { route: "sector", family: "nesw", via: "sector", sectorId: sector.id };
+    }
+    if (sector.id === "nw" || sector.id === "se") {
+      return { route: "sector", family: "nwse", via: "sector", sectorId: sector.id };
+    }
+    return { route: "none", reason: "unclassified" };
+  }
+
+  function flipFamilyCoord(family, dr, dc) {
+    if (family === "ew") return [dr, -dc];
+    if (family === "ns") return [-dr, dc];
+    if (family === "nesw") return [dc, dr];
+    if (family === "nwse") return [-dc, -dr];
+    return [dr, dc];
+  }
+
+  function expandFamilyCoords(family, dr, dc) {
+    const out = [];
+    if (family === "ew") {
+      const a = Math.abs(dc);
+      const s = Math.sign(dc) || 1;
+      out.push([dr, -s * (a + 1)]);
+      if (a > 1) out.push([dr, -s * (a - 1)]);
+      out.push([dr, s * (a + 1)]);
+      if (a > 1) out.push([dr, s * (a - 1)]);
+      return out;
+    }
+    if (family === "ns") {
+      const a = Math.abs(dr);
+      const s = Math.sign(dr) || 1;
+      out.push([-s * (a + 1), dc]);
+      if (a > 1) out.push([-s * (a - 1), dc]);
+      out.push([s * (a + 1), dc]);
+      if (a > 1) out.push([s * (a - 1), dc]);
+      return out;
+    }
+    const a = Math.abs(dr);
+    const b = Math.abs(dc);
+    const sr = Math.sign(dr) || 1;
+    const sc = Math.sign(dc) || 1;
+    const g1 = [sr * (a + 1), sc * (b + 1)];
+    out.push(flipFamilyCoord(family, g1[0], g1[1]));
+    if (a > 1 && b > 1) {
+      const g0 = [sr * (a - 1), sc * (b - 1)];
+      out.push(flipFamilyCoord(family, g0[0], g0[1]));
+    }
+    out.push(g1);
+    if (a > 1 && b > 1) out.push([sr * (a - 1), sc * (b - 1)]);
+    return out;
+  }
+
+  function cellAtDelta(square, dr, dc) {
+    return cellAt(square, square.cx + dr, square.cy + dc);
+  }
+
+  /**
+   * Phase 4: sector/blade family zigzag (allow opposite-sector bounce).
+   * Flip via family transform first; then ±1 ring expands; closest-stop.
+   */
+  function runSectorPath(square, startRaw, targetRaw, family, routeInfo) {
+    const GS = global.GannSquare;
+    const meta = PATH_FAMILY_META[family];
+    if (!square || !GS || !meta) {
+      return { ok: false, reason: "bad-family", message: "叶区跑图家族无效", steps: [] };
+    }
+    if (!Number.isFinite(startRaw) || !Number.isFinite(targetRaw)) {
+      return { ok: false, reason: "bad-input", message: "请输入有效起点与目标价", steps: [] };
+    }
+    const startHit = GS.findNearest(square, startRaw);
+    const start = startHit && startHit.cell;
+    if (!start) {
+      return { ok: false, reason: "no-start", message: "方阵中找不到起点", steps: [] };
+    }
+    if (GS.almostEqual(start.value, targetRaw)) {
+      return { ok: false, reason: "same", message: "起点与目标相同，无法判定方向", steps: [] };
+    }
+
+    const dist = (price) => Math.abs(price - targetRaw);
+    const pathCells = [start];
+    const seen = new Set([`${start.row}:${start.col}`]);
+    let dr = start.row - square.cx;
+    let dc = start.col - square.cy;
+    let guard = 0;
+    while (guard < 240) {
+      guard += 1;
+      const cur = pathCells[pathCells.length - 1];
+      if (GS.almostEqual(cur.value, targetRaw)) break;
+      const ordered = [flipFamilyCoord(family, dr, dc)].concat(expandFamilyCoords(family, dr, dc));
+      let next = null;
+      for (let i = 0; i < ordered.length; i += 1) {
+        const nr = ordered[i][0];
+        const nc = ordered[i][1];
+        const cand = cellAtDelta(square, nr, nc);
+        if (!cand) continue;
+        const key = `${cand.row}:${cand.col}`;
+        if (seen.has(key)) continue;
+        if (dist(cand.value) < dist(cur.value) - 1e-12) {
+          next = { cell: cand, dr: nr, dc: nc };
+          break;
+        }
+      }
+      if (!next) break;
+      pathCells.push(next.cell);
+      seen.add(`${next.cell.row}:${next.cell.col}`);
+      dr = next.dr;
+      dc = next.dc;
+    }
+
+    const last = pathCells[pathCells.length - 1];
+    const reached = GS.almostEqual(last.value, targetRaw);
+    const steps = pathCells.map((cell, i) => ({
+      cell,
+      price: cell.value,
+      move: i === 0 ? "start" : meta.move,
+      family,
+    }));
+    const viaNote =
+      routeInfo && routeInfo.via === "blade"
+        ? `叶轨${routeInfo.trackId}`
+        : routeInfo && routeInfo.sectorId
+          ? sectorById(routeInfo.sectorId)?.name || routeInfo.sectorId
+          : meta.id;
+
+    return {
+      ok: true,
+      kind: "pinwheel-sector",
+      algorithm: "PinwheelSector",
+      family,
+      familyLabel: meta.label,
+      via: routeInfo ? routeInfo.via : "sector",
+      trackId: routeInfo ? routeInfo.trackId : null,
+      sectorId: routeInfo ? routeInfo.sectorId : null,
+      startRaw,
+      targetRaw,
+      targetPrice: targetRaw,
+      steps,
+      reached,
+      message: reached
+        ? `风车 · ${viaNote} · ${meta.label} · 已到达 ${GS.formatNumber(last.value)}`
+        : `风车 · ${viaNote} · ${meta.label} · 最接近 ${GS.formatNumber(last.value)}`,
+    };
+  }
+
+  /**
+   * Unified pinwheel runner: skeleton start → Phase 2; else Phase 4 family.
+   */
+  function runPinwheelPath(square, startRaw, targetRaw) {
+    const GS = global.GannSquare;
+    if (!square || !GS) {
+      return { ok: false, reason: "no-square", message: "方阵未就绪", steps: [] };
+    }
+    if (!Number.isFinite(startRaw) || !Number.isFinite(targetRaw)) {
+      return { ok: false, reason: "bad-input", message: "请输入有效起点与目标价", steps: [] };
+    }
+    const startHit = GS.findNearest(square, startRaw);
+    const start = startHit && startHit.cell;
+    if (!start) {
+      return { ok: false, reason: "no-start", message: "方阵中找不到起点", steps: [] };
+    }
+    const route = resolvePathRoute(square, start);
+    if (route.route === "frame") {
+      return runFramePath(square, startRaw, targetRaw);
+    }
+    if (route.route === "sector") {
+      return runSectorPath(square, startRaw, targetRaw, route.family, route);
+    }
+    if (route.reason === "center") {
+      return { ok: false, reason: "center", message: "起点在中心，无法判定叶区/骨架跑图", steps: [] };
+    }
+    return {
+      ok: false,
+      reason: route.reason || "unclassified",
+      message: "起点无法归入骨架或叶区/叶轨，暂不跑图",
+      steps: [],
+    };
+  }
+
   /**
    * Phase 2: run on a single skeleton axis only (cross/diag diameter).
    * Zigzag opposite rays; try same-ring then ring±1; stop at closest to target.
@@ -647,6 +874,11 @@
     cellOnRay,
     isOnFrame,
     runFramePath,
+    runSectorPath,
+    runPinwheelPath,
+    resolvePathRoute,
+    trackIdForCell,
+    PATH_FAMILY_META,
     normalizeDeg,
     bladeBearing,
     cellBearingDeg,

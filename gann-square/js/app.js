@@ -2,11 +2,18 @@
   const $ = (id) => document.getElementById(id);
   const LABEL_PATH_LINE = "Constellate · 角十角";
   const LABEL_PINWHEEL_FRAME = "风车 · 骨架轴";
+  const LABEL_PINWHEEL_SECTOR = "风车 · 叶区";
   const PINWHEEL_AXIS_LABEL = {
     ns: "N-S",
     ew: "E-W",
     nesw: "NE-SW",
     nwse: "NW-SE",
+  };
+  const PINWHEEL_FAMILY_LABEL = {
+    ew: "水平180°",
+    ns: "垂直180°",
+    nesw: "45°对角",
+    nwse: "45°对角",
   };
   const LABEL_PROJECT_FULL = "Constellate · 完整推演";
 
@@ -1010,6 +1017,8 @@
     if (move === "start") return "起点";
     if (move === "45") return "45°";
     if (move === "180") return "180°";
+    if (move === "180-h") return "水平180°";
+    if (move === "180-v") return "垂直180°";
     if (move === "frame") return "骨架轴";
     return move;
   }
@@ -1019,12 +1028,16 @@
       const axis = PINWHEEL_AXIS_LABEL[result.axisFamily] || result.axisFamily || "";
       return axis ? `${LABEL_PINWHEEL_FRAME} · ${axis}` : LABEL_PINWHEEL_FRAME;
     }
+    if (result && result.kind === "pinwheel-sector") {
+      const fam = PINWHEEL_FAMILY_LABEL[result.family] || result.familyLabel || "";
+      return fam ? `${LABEL_PINWHEEL_SECTOR} · ${fam}` : LABEL_PINWHEEL_SECTOR;
+    }
     return LABEL_PATH_LINE;
   }
 
   function shouldShowActivePath() {
     if (!state.pathResult) return false;
-    if (state.pathResult.kind === "pinwheel-frame") {
+    if (state.pathResult.kind === "pinwheel-frame" || state.pathResult.kind === "pinwheel-sector") {
       return currentPathMethod() === "pinwheel" || !!(els.pathOverlayCompare && els.pathOverlayCompare.checked);
     }
     return shouldShowConstellateLayers();
@@ -1473,7 +1486,10 @@
     state.pinwheel.selectedSector = null;
     if (els.pinwheelOverlay) els.pinwheelOverlay.innerHTML = "";
     if (els.pinwheelSummary) els.pinwheelSummary.textContent = "尚未绘制风车架构";
-    if (state.pathResult && state.pathResult.kind === "pinwheel-frame") {
+    if (
+      state.pathResult &&
+      (state.pathResult.kind === "pinwheel-frame" || state.pathResult.kind === "pinwheel-sector")
+    ) {
       clearTimeout(state.pathDrawTimer);
       state.pathResult = null;
       state.pathActiveStep = null;
@@ -1494,7 +1510,7 @@
     syncPathMethodUi();
   }
 
-  function runPinwheelFramePath() {
+  function runPinwheelPathFlow() {
     if (state.mode !== "price") {
       showToast("请先切换到价格模式");
       return;
@@ -1518,9 +1534,9 @@
     }
     enablePinwheelScaffold(false);
 
-    const result = GannPinwheel.runFramePath(state.square, start, target);
+    const result = GannPinwheel.runPinwheelPath(state.square, start, target);
     if (!result.ok) {
-      showToast(result.message || "风车骨架跑图失败");
+      showToast(result.message || "风车跑图失败");
       redrawPathAndProject();
       return;
     }
@@ -1552,7 +1568,10 @@
   }
 
   function clearPinwheelPath() {
-    if (!state.pathResult || state.pathResult.kind !== "pinwheel-frame") {
+    if (
+      !state.pathResult ||
+      (state.pathResult.kind !== "pinwheel-frame" && state.pathResult.kind !== "pinwheel-sector")
+    ) {
       showToast("当前无风车路径");
       return;
     }
@@ -2235,7 +2254,11 @@
       .join(" → ")}`;
     try {
       await navigator.clipboard.writeText(text);
-      showToast(state.pathResult.kind === "pinwheel-frame" ? "风车路径已复制" : "角十角路径已复制");
+      showToast(
+        state.pathResult.kind === "pinwheel-frame" || state.pathResult.kind === "pinwheel-sector"
+          ? "风车路径已复制"
+          : "角十角路径已复制"
+      );
     } catch (err) {
       showToast("复制失败");
     }
@@ -2412,7 +2435,7 @@
       els.btnPinwheelSectorClear.addEventListener("click", () => clearPinwheelSector(true));
     }
     if (els.btnPinwheelRun) {
-      els.btnPinwheelRun.addEventListener("click", runPinwheelFramePath);
+      els.btnPinwheelRun.addEventListener("click", runPinwheelPathFlow);
     }
     if (els.btnPinwheelPathClear) {
       els.btnPinwheelPathClear.addEventListener("click", clearPinwheelPath);
