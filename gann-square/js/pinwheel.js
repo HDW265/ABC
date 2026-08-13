@@ -435,13 +435,30 @@
     return normalizeDeg((Math.atan2(dc, -dr) * 180) / Math.PI);
   }
 
+  /** True if cell lies on any pinwheel blade ray (轨迹1–4 lattice), including center. */
+  function isOnBlade(square, cell) {
+    if (!square || !cell) return false;
+    const dr = cell.row - square.cx;
+    const dc = cell.col - square.cy;
+    if (dr === 0 && dc === 0) return true;
+    return BLADE_DIRS.some((d) => {
+      if (d.dr === 0 || d.dc === 0) return false;
+      if (dr % d.dr !== 0 || dc % d.dc !== 0) return false;
+      const kr = dr / d.dr;
+      const kc = dc / d.dc;
+      return kr === kc && kr > 0 && Number.isInteger(kr);
+    });
+  }
+
   function bearingInSector(deg, sector) {
     if (!Number.isFinite(deg) || !sector) return false;
     const d = normalizeDeg(deg);
     const from = normalizeDeg(sector.fromDeg);
     const to = normalizeDeg(sector.toDeg);
-    if (sector.wrap || from > to) return d >= from || d < to;
-    return d >= from && d < to;
+    // Open on both ends: blade boundary bearings are not interior to any sector.
+    const eps = 1e-9;
+    if (sector.wrap || from > to) return d > from + eps || d < to - eps;
+    return d > from + eps && d < to - eps;
   }
 
   function sectorById(id) {
@@ -449,6 +466,7 @@
   }
 
   function sectorForCell(square, cell) {
+    if (isOnBlade(square, cell)) return null;
     const deg = cellBearingDeg(square, cell);
     if (deg == null) return null;
     return SECTORS.find((s) => bearingInSector(deg, s)) || null;
@@ -462,6 +480,7 @@
       for (let c = 0; c < square.size; c += 1) {
         const cell = square.meta[r][c];
         if (cell.ring === 0) continue;
+        if (isOnBlade(square, cell)) continue;
         if (sectorForCell(square, cell)?.id === sector.id) out.push(cell);
       }
     }
@@ -634,6 +653,7 @@
     sectorById,
     sectorForCell,
     cellsInSector,
+    isOnBlade,
     trackById,
     sectorLabelAnchor,
   };

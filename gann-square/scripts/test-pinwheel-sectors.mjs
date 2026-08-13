@@ -23,19 +23,28 @@ function cellAt(dr, dc) {
   return sq.meta[cx + dr][cx + dc];
 }
 
+function findPrice(p) {
+  for (let r = 0; r < sq.size; r++) {
+    for (let c = 0; c < sq.size; c++) {
+      if (sq.meta[r][c].value === p) return sq.meta[r][c];
+    }
+  }
+  return null;
+}
+
+let failed = 0;
+
 const expect = [
-  [cellAt(-3, 0), "n"], // north cross
-  [cellAt(-2, 2), "ne"], // near NE diag
+  [cellAt(-3, 0), "n"],
+  [cellAt(-2, 2), "ne"],
   [cellAt(0, 3), "e"],
   [cellAt(2, 2), "se"],
   [cellAt(3, 0), "s"],
   [cellAt(2, -2), "sw"],
   [cellAt(0, -3), "w"],
   [cellAt(-2, -2), "nw"],
-  // track samples must sit on boundaries (half-open: belong to one side)
 ];
 
-let failed = 0;
 for (const [cell, id] of expect) {
   const got = ctx.GannPinwheel.sectorForCell(sq, cell);
   const ok = got && got.id === id;
@@ -43,51 +52,51 @@ for (const [cell, id] of expect) {
   if (!ok) failed += 1;
 }
 
-// Track tip prices from frozen table
 const tips = {
   1: [16, 24, 63, 79, 142, 166],
   2: [10, 18, 51, 67, 124, 148],
   3: [12, 20, 55, 71, 130, 154],
   4: [14, 22, 59, 75, 136, 160],
 };
+
 for (const [tid, prices] of Object.entries(tips)) {
-  const track = ctx.GannPinwheel.trackById(Number(tid));
-  const dirs = track.bladeIds.map((id) => ctx.GannPinwheel.BLADE_DIRS.find((d) => d.id === id));
   for (const p of prices) {
-    let hit = null;
-    for (let r = 0; r < sq.size; r++) {
-      for (let c = 0; c < sq.size; c++) {
-        if (sq.meta[r][c].value === p) hit = sq.meta[r][c];
-      }
-    }
+    const hit = findPrice(p);
     if (!hit) {
       console.log(`track${tid} missing ${p}`);
       failed += 1;
       continue;
     }
-    const dr = hit.row - cx;
-    const dc = hit.col - cx;
-    const onTrack = dirs.some((d) => {
-      if (!d) return false;
-      // proportional to blade step
-      return dr * d.dc === dc * d.dr && Math.sign(dr || d.dr) === Math.sign(d.dr || dr) && Math.sign(dc || d.dc) === Math.sign(d.dc || dc);
-    });
-    console.log(`track${tid} ${p} (${dr},${dc}): ${onTrack ? "OK" : "FAIL"}`);
-    if (!onTrack) failed += 1;
+    const onBlade = ctx.GannPinwheel.isOnBlade(sq, hit);
+    const sector = ctx.GannPinwheel.sectorForCell(sq, hit);
+    const ok = onBlade && !sector;
+    console.log(`track${tid} ${p}: ${ok ? "OK" : "FAIL"} onBlade=${onBlade} sector=${sector?.id}`);
+    if (!ok) failed += 1;
   }
 }
 
-// Partition: every non-center cell belongs to exactly one sector
+// East/West must not include tracks 2–3 lattice
+const ewBoundary = [1, 10, 18, 51, 67, 124, 148, 12, 20, 55, 71, 130, 154];
+const west = new Set(ctx.GannPinwheel.cellsInSector(sq, "w").map((c) => c.value));
+const east = new Set(ctx.GannPinwheel.cellsInSector(sq, "e").map((c) => c.value));
+const leaked = ewBoundary.filter((p) => west.has(p) || east.has(p));
+console.log(`E/W boundary leak: ${leaked.length ? leaked.join(",") : "none"}`);
+if (leaked.length) failed += 1;
+
+// Non-blade cells still partition into exactly one sector
 let partitionFail = 0;
 for (let r = 0; r < sq.size; r++) {
   for (let c = 0; c < sq.size; c++) {
     const cell = sq.meta[r][c];
     if (cell.ring === 0) continue;
-    const s = ctx.GannPinwheel.sectorForCell(sq, cell);
-    if (!s) partitionFail += 1;
+    if (ctx.GannPinwheel.isOnBlade(sq, cell)) {
+      if (ctx.GannPinwheel.sectorForCell(sq, cell)) partitionFail += 1;
+      continue;
+    }
+    if (!ctx.GannPinwheel.sectorForCell(sq, cell)) partitionFail += 1;
   }
 }
-console.log(`partition holes: ${partitionFail}`);
+console.log(`partition issues: ${partitionFail}`);
 if (partitionFail) failed += 1;
 
 if (failed) {
