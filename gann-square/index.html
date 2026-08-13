@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./css/styles.css" />
+  <link rel="stylesheet" href="./css/styles.css?v=m11" />
 </head>
 <body>
   <div class="atmosphere" aria-hidden="true"></div>
@@ -217,6 +217,17 @@
         </div>
         <div class="draw-popover pinwheel-color-pop hidden" id="pinColorPop" role="listbox" aria-label="风车线颜色"></div>
         <p class="hint mono" id="pinwheelAnchorHint">锚点环：—</p>
+        <h3 class="path-subhead">风车叶区（阶段三）</h3>
+        <p class="hint">主名北/东北… · 副名夹轨 · 点选区名或点格子高亮（不跑叶区路径）</p>
+        <div class="checks">
+          <label><input type="checkbox" id="pinwheelShowSectorLabels" checked /> 显示叶区标注</label>
+          <label><input type="checkbox" id="pinwheelShowTrackLabels" checked /> 显示轨迹编号 1–4</label>
+        </div>
+        <div class="pinwheel-sector-btns" id="pinwheelSectorBtns" role="group" aria-label="叶区选择"></div>
+        <p class="hint" id="pinwheelSectorHint">未选叶区 · 点格子或上方按钮</p>
+        <div class="path-actions">
+          <button type="button" class="btn ghost compact" id="btnPinwheelSectorClear">清除叶区高亮</button>
+        </div>
         <h3 class="path-subhead">风车骨架跑图</h3>
         <p class="hint">独立起点/目标（不与 Constellate 共用）· 超出当前环时自动扩环 · 仅在十字/对角骨架轴上对穿逼近</p>
         <label class="field">
@@ -431,11 +442,11 @@
     <p>纯静态网页 · 打开本文件或用任意静态服务器即可运行，无需安装依赖。</p>
   </footer>
 
-  <script src="./js/square.js?v=m10"></script>
-  <script src="./js/path.js?v=m10"></script>
-  <script src="./js/project.js?v=m10"></script>
-  <script src="./js/pinwheel.js?v=m10"></script>
-  <script src="./js/draw.js?v=m10"></script>
-  <script src="./js/app.js?v=m10"></script>
+  <script src="./js/square.js?v=m11"></script>
+  <script src="./js/path.js?v=m11"></script>
+  <script src="./js/project.js?v=m11"></script>
+  <script src="./js/pinwheel.js?v=m11"></script>
+  <script src="./js/draw.js?v=m11"></script>
+  <script src="./js/app.js?v=m11"></script>
 </body>
 </html>
