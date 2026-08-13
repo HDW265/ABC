@@ -1,6 +1,13 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const LABEL_PATH_LINE = "Constellate · 角十角";
+  const LABEL_PINWHEEL_FRAME = "风车 · 骨架轴";
+  const PINWHEEL_AXIS_LABEL = {
+    ns: "N-S",
+    ew: "E-W",
+    nesw: "NE-SW",
+    nwse: "NW-SE",
+  };
   const LABEL_PROJECT_FULL = "Constellate · 完整推演";
 
   const els = {
@@ -107,8 +114,12 @@
     pinwheelShowLabels: $("pinwheelShowLabels"),
     pinwheelAnchorHint: $("pinwheelAnchorHint"),
     pinwheelSummary: $("pinwheelSummary"),
+    pinwheelStart: $("pinwheelStart"),
+    pinwheelTarget: $("pinwheelTarget"),
     btnPinwheelDraw: $("btnPinwheelDraw"),
     btnPinwheelClear: $("btnPinwheelClear"),
+    btnPinwheelRun: $("btnPinwheelRun"),
+    btnPinwheelPathClear: $("btnPinwheelPathClear"),
     btnPinFrameColor: $("btnPinFrameColor"),
     btnPinBladeColor: $("btnPinBladeColor"),
     btnPinFrameDash: $("btnPinFrameDash"),
@@ -984,7 +995,24 @@
     if (move === "start") return "起点";
     if (move === "45") return "45°";
     if (move === "180") return "180°";
+    if (move === "frame") return "骨架轴";
     return move;
+  }
+
+  function pathLineLabel(result) {
+    if (result && result.kind === "pinwheel-frame") {
+      const axis = PINWHEEL_AXIS_LABEL[result.axisFamily] || result.axisFamily || "";
+      return axis ? `${LABEL_PINWHEEL_FRAME} · ${axis}` : LABEL_PINWHEEL_FRAME;
+    }
+    return LABEL_PATH_LINE;
+  }
+
+  function shouldShowActivePath() {
+    if (!state.pathResult) return false;
+    if (state.pathResult.kind === "pinwheel-frame") {
+      return currentPathMethod() === "pinwheel" || !!(els.pathOverlayCompare && els.pathOverlayCompare.checked);
+    }
+    return shouldShowConstellateLayers();
   }
 
   function preparePathOverlaySize() {
@@ -1210,7 +1238,7 @@
   }
 
   function redrawPathAndProject() {
-    if (shouldShowConstellateLayers() && state.pathResult) drawPathOverlay(state.pathResult);
+    if (shouldShowActivePath() && state.pathResult) drawPathOverlay(state.pathResult);
     else {
       clearPathOverlay();
       preparePathOverlaySize();
@@ -1342,8 +1370,86 @@
     state.pinwheel.enabled = false;
     if (els.pinwheelOverlay) els.pinwheelOverlay.innerHTML = "";
     if (els.pinwheelSummary) els.pinwheelSummary.textContent = "尚未绘制风车架构";
+    if (state.pathResult && state.pathResult.kind === "pinwheel-frame") {
+      clearTimeout(state.pathDrawTimer);
+      state.pathResult = null;
+      state.pathActiveStep = null;
+      updatePathTable(null);
+    }
     updatePinwheelHints();
+    redrawPathAndProject();
     showToast("已清除风车层");
+  }
+
+  function selectPinwheelMethod() {
+    const radio = document.querySelector('input[name="pathMethod"][value="pinwheel"]');
+    if (radio) radio.checked = true;
+    state.pathMethod = "pinwheel";
+    syncPathMethodUi();
+  }
+
+  function runPinwheelFramePath() {
+    if (state.mode !== "price") {
+      showToast("请先切换到价格模式");
+      return;
+    }
+    if (!state.square) {
+      showToast("方阵未就绪");
+      return;
+    }
+    const start = Number(els.pinwheelStart ? els.pinwheelStart.value : NaN);
+    const target = Number(els.pinwheelTarget ? els.pinwheelTarget.value : NaN);
+    if (!Number.isFinite(start) || !Number.isFinite(target)) {
+      showToast("请输入风车起点与目标价");
+      return;
+    }
+
+    selectPinwheelMethod();
+    enablePinwheelScaffold(false);
+
+    const result = GannPinwheel.runFramePath(state.square, start, target);
+    if (!result.ok) {
+      showToast(result.message || "风车骨架跑图失败");
+      redrawPathAndProject();
+      return;
+    }
+
+    clearTimeout(state.pathDrawTimer);
+    state.pathResult = result;
+    state.projectResult = null;
+    state.pathActiveStep = null;
+    state.projectActivePrice = null;
+    clearLocateHighlight();
+    updateProjectPanel(null);
+    updatePathTable(result);
+    if (els.pathCollapsePanels && els.pathCollapsePanels.checked) {
+      setPanelCollapsed("left", true);
+      setPanelCollapsed("right", true);
+    }
+    if (els.hlCross) els.hlCross.checked = true;
+    if (els.hlDiag) els.hlDiag.checked = true;
+    animatePath(result);
+    const first = result.steps[0];
+    if (first && first.cell) {
+      const el = els.square.querySelector(
+        `[data-row="${first.cell.row}"][data-col="${first.cell.col}"]`
+      );
+      if (el) el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+    }
+    showToast(result.message);
+  }
+
+  function clearPinwheelPath() {
+    if (!state.pathResult || state.pathResult.kind !== "pinwheel-frame") {
+      showToast("当前无风车路径");
+      return;
+    }
+    clearTimeout(state.pathDrawTimer);
+    state.pathResult = null;
+    state.pathActiveStep = null;
+    updatePathTable(null);
+    redrawPathAndProject();
+    showToast("已清除风车路径");
   }
 
   function redrawDrawLayer() {
@@ -1784,7 +1890,7 @@
     const snapNote = result.snapped
       ? `（输入 ${GannSquare.formatNumber(result.targetRaw)} → 落点 ${GannSquare.formatNumber(result.targetPrice)}）`
       : "";
-    els.pathResultSummary.textContent = `${LABEL_PATH_LINE} · ${prices} · ${result.reached ? "已到达" : "未到达"} · ${result.steps.length - 1} 步${snapNote}`;
+    els.pathResultSummary.textContent = `${pathLineLabel(result)} · ${prices} · ${result.reached ? "已到达" : "未到达"} · ${result.steps.length - 1} 步${snapNote}`;
     els.pathSummary.textContent = result.message;
     updateMinibarFromState();
 
@@ -1810,7 +1916,7 @@
     });
 
     const mini = result.steps.map((s) => GannSquare.formatNumber(s.price)).join(" → ");
-    els.pathMinibarText.textContent = `${LABEL_PATH_LINE} · ${mini}${result.reached ? " ✓" : ""}`;
+    els.pathMinibarText.textContent = `${pathLineLabel(result)} · ${mini}${result.reached ? " ✓" : ""}`;
     const collapsed = state.leftCollapsed || state.rightCollapsed;
     els.pathMinibar.classList.toggle("hidden", !collapsed || !result.ok);
   }
@@ -1983,7 +2089,7 @@
     const parts = [];
     if (state.pathResult?.ok) {
       const line = state.pathResult.steps.map((s) => GannSquare.formatNumber(s.price)).join(" → ");
-      parts.push(`${LABEL_PATH_LINE} · ${line}${state.pathResult.reached ? " ✓" : ""}`);
+      parts.push(`${pathLineLabel(state.pathResult)} · ${line}${state.pathResult.reached ? " ✓" : ""}`);
     }
     if (state.projectResult?.ok) {
       parts.push(`${LABEL_PROJECT_FULL} · ${state.projectResult.segments}段`);
@@ -2012,12 +2118,12 @@
 
   async function copyPath() {
     if (!state.pathResult) return;
-    const text = `${LABEL_PATH_LINE} · ${state.pathResult.steps
+    const text = `${pathLineLabel(state.pathResult)} · ${state.pathResult.steps
       .map((s) => GannSquare.formatNumber(s.price))
       .join(" → ")}`;
     try {
       await navigator.clipboard.writeText(text);
-      showToast("角十角路径已复制");
+      showToast(state.pathResult.kind === "pinwheel-frame" ? "风车路径已复制" : "角十角路径已复制");
     } catch (err) {
       showToast("复制失败");
     }
@@ -2065,6 +2171,8 @@
     els.lookupHint.textContent = "定位最接近的格子与邻近关键位";
     els.pathStart.value = "922";
     els.pathTarget.value = "749";
+    if (els.pinwheelStart) els.pinwheelStart.value = "133";
+    if (els.pinwheelTarget) els.pinwheelTarget.value = "20";
     clearTimeout(state.pathDrawTimer);
     state.pathResult = null;
     state.projectResult = null;
@@ -2187,6 +2295,12 @@
     }
     if (els.btnPinwheelClear) {
       els.btnPinwheelClear.addEventListener("click", clearPinwheelScaffold);
+    }
+    if (els.btnPinwheelRun) {
+      els.btnPinwheelRun.addEventListener("click", runPinwheelFramePath);
+    }
+    if (els.btnPinwheelPathClear) {
+      els.btnPinwheelPathClear.addEventListener("click", clearPinwheelPath);
     }
     if (els.btnPinFrameColor) {
       els.btnPinFrameColor.addEventListener("click", (ev) => {

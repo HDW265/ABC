@@ -252,9 +252,128 @@
     return model;
   }
 
+  const OPPOSITE_RAY = {
+    n: "s",
+    s: "n",
+    e: "w",
+    w: "e",
+    ne: "sw",
+    sw: "ne",
+    nw: "se",
+    se: "nw",
+  };
+
+  const AXIS_FAMILY = {
+    n: "ns",
+    s: "ns",
+    e: "ew",
+    w: "ew",
+    ne: "nesw",
+    sw: "nesw",
+    nw: "nwse",
+    se: "nwse",
+  };
+
+  function cellOnRay(square, axis, ring) {
+    if (!square || ring < 1) return null;
+    for (let r = 0; r < square.size; r += 1) {
+      for (let c = 0; c < square.size; c += 1) {
+        const m = square.meta[r][c];
+        if (m.axis === axis && m.ring === ring) return m;
+      }
+    }
+    return null;
+  }
+
+  function isOnFrame(cell) {
+    return !!(cell && (cell.isCross || cell.isDiag));
+  }
+
+  /**
+   * Phase 2: run on a single skeleton axis only (cross/diag diameter).
+   * Zigzag opposite rays; try same-ring then ring±1; stop at closest to target.
+   */
+  function runFramePath(square, startRaw, targetRaw) {
+    const GS = global.GannSquare;
+    if (!square || !GS) {
+      return { ok: false, reason: "no-square", message: "方阵未就绪", steps: [] };
+    }
+    if (!Number.isFinite(startRaw) || !Number.isFinite(targetRaw)) {
+      return { ok: false, reason: "bad-input", message: "请输入有效起点与目标价", steps: [] };
+    }
+    const startHit = GS.findNearest(square, startRaw);
+    const start = startHit && startHit.cell;
+    if (!isOnFrame(start)) {
+      return {
+        ok: false,
+        reason: "not-on-frame",
+        message: "起点不在骨架线（十字/对角）上，暂不跑图（叶线跑图见阶段三）",
+        steps: [],
+      };
+    }
+    if (GS.almostEqual(start.value, targetRaw)) {
+      return { ok: false, reason: "same", message: "起点与目标相同，无法判定方向", steps: [] };
+    }
+
+    const dist = (price) => Math.abs(price - targetRaw);
+    const pathCells = [start];
+    const seen = new Set([`${start.row}:${start.col}`]);
+    let guard = 0;
+    while (guard < 240) {
+      guard += 1;
+      const cur = pathCells[pathCells.length - 1];
+      if (GS.almostEqual(cur.value, targetRaw)) break;
+      const opp = OPPOSITE_RAY[cur.axis];
+      if (!opp) break;
+      let next = null;
+      for (let i = 0; i < 3; i += 1) {
+        const delta = i === 0 ? 0 : i === 1 ? -1 : 1;
+        const ring = cur.ring + delta;
+        const cand = cellOnRay(square, opp, ring);
+        if (!cand) continue;
+        const key = `${cand.row}:${cand.col}`;
+        if (seen.has(key)) continue;
+        if (dist(cand.value) < dist(cur.value) - 1e-12) {
+          next = cand;
+          break;
+        }
+      }
+      if (!next) break;
+      pathCells.push(next);
+      seen.add(`${next.row}:${next.col}`);
+    }
+
+    const last = pathCells[pathCells.length - 1];
+    const reached = GS.almostEqual(last.value, targetRaw);
+    const steps = pathCells.map((cell, i) => ({
+      cell,
+      price: cell.value,
+      move: i === 0 ? "start" : "frame",
+      axis: cell.axis,
+    }));
+
+    return {
+      ok: true,
+      kind: "pinwheel-frame",
+      algorithm: "PinwheelFrame",
+      axisFamily: AXIS_FAMILY[start.axis] || start.axis,
+      startAxis: start.axis,
+      startRaw,
+      targetRaw,
+      targetPrice: targetRaw,
+      steps,
+      reached,
+      message: reached
+        ? `风车 · 骨架轴 · 已到达 ${GS.formatNumber(last.value)}`
+        : `风车 · 骨架轴 · 最接近 ${GS.formatNumber(last.value)}`,
+    };
+  }
+
   global.GannPinwheel = {
     FRAME_DIRS,
     BLADE_DIRS,
+    OPPOSITE_RAY,
+    AXIS_FAMILY,
     COLORS,
     DASH_CYCLE,
     WIDTH_CYCLE,
@@ -275,5 +394,8 @@
     frameRays,
     bladeRays,
     render,
+    cellOnRay,
+    isOnFrame,
+    runFramePath,
   };
 })(window);
