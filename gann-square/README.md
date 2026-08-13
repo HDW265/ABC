@@ -295,7 +295,7 @@ python3 -m http.server 8080
    - **算法定稿归档：** [PATH_ALGORITHM.md](./PATH_ALGORITHM.md)
 
 7b. **风车跑图法**  
-   - 与 Constellate 共用 Begin / Step / Rings，以及**起点价 / 目标价**  
+   - 与 Constellate 共用 Begin / Step / Rings；**起点价 / 目标价独立**（不共用）  
    - **阶段 1 · 构图**：「风车构图」→ 8 条骨架虚线（十字/对角）+ 8 条叶实线；锚点环从第 3 环起每隔 1 环至 N  
    - **阶段 2 · 骨架跑图**：「风车骨架跑图」→ 仅起点落在十字/对角骨架上时对穿逼近（方案 A：完整对穿，含如 133→20 的 31）；起点不在骨架上暂不跑（叶线见阶段三）  
    - 可与 Constellate 路径叠加对照  

@@ -114,6 +114,8 @@
     pinwheelShowLabels: $("pinwheelShowLabels"),
     pinwheelAnchorHint: $("pinwheelAnchorHint"),
     pinwheelSummary: $("pinwheelSummary"),
+    pinwheelStart: $("pinwheelStart"),
+    pinwheelTarget: $("pinwheelTarget"),
     btnPinwheelDraw: $("btnPinwheelDraw"),
     btnPinwheelClear: $("btnPinwheelClear"),
     btnPinwheelRun: $("btnPinwheelRun"),
@@ -1395,10 +1397,10 @@
       showToast("方阵未就绪");
       return;
     }
-    const start = Number(els.pathStart.value);
-    const target = Number(els.pathTarget.value);
+    const start = Number(els.pinwheelStart ? els.pinwheelStart.value : NaN);
+    const target = Number(els.pinwheelTarget ? els.pinwheelTarget.value : NaN);
     if (!Number.isFinite(start) || !Number.isFinite(target)) {
-      showToast("请输入有效起点与目标");
+      showToast("请输入风车起点与目标价");
       return;
     }
 
@@ -2169,6 +2171,8 @@
     els.lookupHint.textContent = "定位最接近的格子与邻近关键位";
     els.pathStart.value = "922";
     els.pathTarget.value = "749";
+    if (els.pinwheelStart) els.pinwheelStart.value = "133";
+    if (els.pinwheelTarget) els.pinwheelTarget.value = "20";
     clearTimeout(state.pathDrawTimer);
     state.pathResult = null;
     state.projectResult = null;
