@@ -294,10 +294,10 @@ python3 -m http.server 8080
    - 右侧：秘诀串、价位芯片；画布推演默认打点（已下线通道明细）  
    - **算法定稿归档：** [PATH_ALGORITHM.md](./PATH_ALGORITHM.md)
 
-7b. **风车跑图法（阶段 1：构图）**  
-   - 与 Constellate 共用 Begin / Step / Rings  
-   - 方法切换 →「风车构图」：8 条骨架虚线（十字/对角）+ 8 条叶实线  
-   - 锚点环：从第 3 环起每隔 1 环至总环数 N（如 N=8 → 3,5,7）  
+7b. **风车跑图法**  
+   - 与 Constellate 共用 Begin / Step / Rings，以及**起点价 / 目标价**  
+   - **阶段 1 · 构图**：「风车构图」→ 8 条骨架虚线（十字/对角）+ 8 条叶实线；锚点环从第 3 环起每隔 1 环至 N  
+   - **阶段 2 · 骨架跑图**：「风车骨架跑图」→ 仅起点落在十字/对角骨架上时对穿逼近（方案 A：完整对穿，含如 133→20 的 31）；起点不在骨架上暂不跑（叶线见阶段三）  
    - 可与 Constellate 路径叠加对照  
 
 8. **手工批注画图（画布顶栏）**  
@@ -342,7 +342,7 @@ gann-square/
 ├── css/styles.css
 ├── js/square.js         ← 九方图生成
 ├── js/path.js           ← Constellate 单线（GannPath）
-├── js/pinwheel.js       ← 风车构图（GannPinwheel）
+├── js/pinwheel.js       ← 风车构图 + 骨架跑图（GannPinwheel）
 ├── js/project.js        ← 推演表（GannProject）
 ├── js/app.js            ← 界面交互
 ├── PATH_ALGORITHM.md    ← Constellate 算法归档（定稿）
