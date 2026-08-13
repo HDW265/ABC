@@ -656,6 +656,7 @@
     updateReadout(cell);
     if (
       !options.skipSector &&
+      !state.draw?.enabled &&
       state.pinwheel.enabled &&
       currentPathMethod() === "pinwheel" &&
       cell
