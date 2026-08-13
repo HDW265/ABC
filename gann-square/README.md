@@ -342,6 +342,7 @@ gann-square/
 ├── css/styles.css
 ├── js/square.js         ← 九方图生成
 ├── js/path.js           ← Constellate 单线（GannPath）
+├── js/pinwheel.js       ← 风车构图（GannPinwheel）
 ├── js/project.js        ← 推演表（GannProject）
 ├── js/app.js            ← 界面交互
 ├── PATH_ALGORITHM.md    ← Constellate 算法归档（定稿）
