@@ -1025,6 +1025,9 @@
 
   function pathLineLabel(result) {
     if (result && result.kind === "pinwheel-frame") {
+      if (result.centerMode) {
+        return `${LABEL_PINWHEEL_FRAME} · ${result.centerMode}`;
+      }
       const axis = PINWHEEL_AXIS_LABEL[result.axisFamily] || result.axisFamily || "";
       return axis ? `${LABEL_PINWHEEL_FRAME} · ${axis}` : LABEL_PINWHEEL_FRAME;
     }
