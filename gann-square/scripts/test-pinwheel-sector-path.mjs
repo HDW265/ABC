@@ -19,6 +19,11 @@ for (const f of ["js/square.js", "js/pinwheel.js"]) {
 const sq = ctx.GannSquare.generateSquare({ begin: 1, step: 1, rings: 14 });
 
 const cases = [
+  // Center start → skeleton by target
+  [1, 19, "pinwheel-frame", "1-2-6-11-19"],
+  [1, 16, "pinwheel-frame", "1-4-8-15"],
+  [1, 13, "pinwheel-frame", "1-3-7-13"],
+  [1, 25, "pinwheel-frame", "1-5-9-17-25"],
   // Phase 2: frame start forced
   [11, 40, "pinwheel-frame", "11-19-28-40"],
   [133, 20, "pinwheel-frame", "133-111-91-73-57-43-31-21"],

@@ -731,7 +731,7 @@
   }
 
   /**
-   * Unified pinwheel runner: skeleton start → Phase 2; else Phase 4 family.
+   * Unified pinwheel runner: center → cross/diag by target; frame → Phase 2; else Phase 4.
    */
   function runPinwheelPath(square, startRaw, targetRaw) {
     const GS = global.GannSquare;
@@ -746,6 +746,9 @@
     if (!start) {
       return { ok: false, reason: "no-start", message: "方阵中找不到起点", steps: [] };
     }
+    if (start.ring === 0 || start.axis === "center") {
+      return runCenterFramePath(square, startRaw, targetRaw);
+    }
     const route = resolvePathRoute(square, start);
     if (route.route === "frame") {
       return runFramePath(square, startRaw, targetRaw);
@@ -753,14 +756,137 @@
     if (route.route === "sector") {
       return runSectorPath(square, startRaw, targetRaw, route.family, route);
     }
-    if (route.reason === "center") {
-      return { ok: false, reason: "center", message: "起点在中心，无法判定叶区/骨架跑图", steps: [] };
-    }
     return {
       ok: false,
       reason: route.reason || "unclassified",
       message: "起点无法归入骨架或叶区/叶轨，暂不跑图",
       steps: [],
+    };
+  }
+
+  /**
+   * Center start: choose skeleton family from target offset, then zigzag on that axis.
+   * |dc|>|dr| → EW; |dr|>|dc| → NS; |dr|=|dc| same-sign → NW-SE; opposite → NE-SW.
+   * First step = cheaper ring-1 arm; closest-stop thereafter.
+   */
+  function chooseCenterAxesFromDelta(dr, dc) {
+    const absR = Math.abs(dr);
+    const absC = Math.abs(dc);
+    if (absC > absR) {
+      return {
+        axes: ["w", "e"],
+        axisFamily: "ew",
+        label: "中心→水平180°",
+      };
+    }
+    if (absR > absC) {
+      return {
+        axes: ["n", "s"],
+        axisFamily: "ns",
+        label: "中心→垂直180°",
+      };
+    }
+    // |dr| === |dc| → diagonal skeleton
+    if (dr * dc > 0) {
+      return {
+        axes: ["nw", "se"],
+        axisFamily: "nwse",
+        label: "中心→对角NW-SE",
+      };
+    }
+    if (dr * dc < 0) {
+      return {
+        axes: ["ne", "sw"],
+        axisFamily: "nesw",
+        label: "中心→对角NE-SW",
+      };
+    }
+    return null;
+  }
+
+  function runCenterFramePath(square, startRaw, targetRaw) {
+    const GS = global.GannSquare;
+    if (!square || !GS) {
+      return { ok: false, reason: "no-square", message: "方阵未就绪", steps: [] };
+    }
+    const center = cellAt(square, square.cx, square.cy);
+    if (!center) {
+      return { ok: false, reason: "no-center", message: "方阵中心无效", steps: [] };
+    }
+    if (GS.almostEqual(center.value, targetRaw)) {
+      return { ok: false, reason: "same", message: "起点与目标相同，无法判定方向", steps: [] };
+    }
+    const targetHit = GS.findNearest(square, targetRaw);
+    const target = targetHit && targetHit.cell;
+    if (!target) {
+      return { ok: false, reason: "no-target", message: "方阵中找不到目标", steps: [] };
+    }
+    const dr = target.row - square.cx;
+    const dc = target.col - square.cy;
+    const choice = chooseCenterAxesFromDelta(dr, dc);
+    if (!choice) {
+      return { ok: false, reason: "center-axis", message: "无法由目标判定中心骨架轴", steps: [] };
+    }
+
+    const armA = cellOnRay(square, choice.axes[0], 1);
+    const armB = cellOnRay(square, choice.axes[1], 1);
+    if (!armA || !armB) {
+      return { ok: false, reason: "no-arm", message: "中心骨架环1臂缺失，请增大环数", steps: [] };
+    }
+    const first = armA.value <= armB.value ? armA : armB;
+
+    const dist = (price) => Math.abs(price - targetRaw);
+    const pathCells = [center, first];
+    const seen = new Set([`${center.row}:${center.col}`, `${first.row}:${first.col}`]);
+    let guard = 0;
+    while (guard < 240) {
+      guard += 1;
+      const cur = pathCells[pathCells.length - 1];
+      if (GS.almostEqual(cur.value, targetRaw)) break;
+      const opp = OPPOSITE_RAY[cur.axis];
+      if (!opp) break;
+      let next = null;
+      for (let i = 0; i < 3; i += 1) {
+        const delta = i === 0 ? 0 : i === 1 ? -1 : 1;
+        const ring = cur.ring + delta;
+        const cand = cellOnRay(square, opp, ring);
+        if (!cand) continue;
+        const key = `${cand.row}:${cand.col}`;
+        if (seen.has(key)) continue;
+        if (dist(cand.value) < dist(cur.value) - 1e-12) {
+          next = cand;
+          break;
+        }
+      }
+      if (!next) break;
+      pathCells.push(next);
+      seen.add(`${next.row}:${next.col}`);
+    }
+
+    const last = pathCells[pathCells.length - 1];
+    const reached = GS.almostEqual(last.value, targetRaw);
+    const steps = pathCells.map((cell, i) => ({
+      cell,
+      price: cell.value,
+      move: i === 0 ? "start" : "frame",
+      axis: cell.axis,
+    }));
+
+    return {
+      ok: true,
+      kind: "pinwheel-frame",
+      algorithm: "PinwheelCenterFrame",
+      axisFamily: choice.axisFamily,
+      startAxis: "center",
+      centerMode: choice.label,
+      startRaw,
+      targetRaw,
+      targetPrice: targetRaw,
+      steps,
+      reached,
+      message: reached
+        ? `风车 · 骨架轴 · ${choice.label} · 已到达 ${GS.formatNumber(last.value)}`
+        : `风车 · 骨架轴 · ${choice.label} · 最接近 ${GS.formatNumber(last.value)}`,
     };
   }
 
@@ -876,6 +1002,8 @@
     runFramePath,
     runSectorPath,
     runPinwheelPath,
+    runCenterFramePath,
+    chooseCenterAxesFromDelta,
     resolvePathRoute,
     trackIdForCell,
     PATH_FAMILY_META,
