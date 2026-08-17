@@ -865,17 +865,29 @@
         ctx.stroke();
         ctx.setLineDash([]);
       }
+      const hollowNodes =
+        state.pathResult.kind === "pinwheel-frame" || state.pathResult.kind === "pinwheel-sector";
       pts.forEach((p, i) => {
         ctx.beginPath();
         ctx.arc(p.x, p.y, cell * 0.28, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(255,252,248,0.95)";
-        ctx.fill();
+        if (!hollowNodes) {
+          ctx.fillStyle = "rgba(255,252,248,0.95)";
+          ctx.fill();
+        }
         ctx.strokeStyle = i === 0 ? "#2f8f4e" : i === pts.length - 1 ? "#b23a2f" : "#b8652f";
         ctx.lineWidth = 2.5;
         ctx.stroke();
         ctx.fillStyle = "#142028";
         ctx.font = `600 ${Math.max(9, Math.floor(cell * 0.22))}px "IBM Plex Mono", monospace`;
-        ctx.fillText(`#${i}`, p.x, p.y);
+        if (hollowNodes) {
+          ctx.textAlign = "left";
+          ctx.textBaseline = "top";
+          ctx.fillText(`#${i}`, p.x - cell * 0.28 + 1, p.y - cell * 0.28 + 1);
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+        } else {
+          ctx.fillText(`#${i}`, p.x, p.y);
+        }
       });
     }
 
@@ -1072,6 +1084,8 @@
       const allowPrice = showPrice && !forceIndexOnly;
       const centers = steps.map((s) => cellCenter(s.cell.row, s.cell.col));
       const ns = sized.ns;
+      const hollowNodes =
+        result.kind === "pinwheel-frame" || result.kind === "pinwheel-sector";
 
       for (let i = 0; i < steps.length - 1; i += 1) {
         if (i + 1 > limit) break;
@@ -1115,14 +1129,21 @@
         if (isStart) cls = "path-node start";
         if (isEnd) cls = "path-node end";
         if (state.pathActiveStep === i) cls += " active";
+        if (hollowNodes) cls += " hollow";
         circle.setAttribute("class", cls);
         els.pathOverlay.appendChild(circle);
 
         if (showIndex) {
           const badge = document.createElementNS(ns, "text");
-          badge.setAttribute("x", p.x);
-          badge.setAttribute("y", p.y);
-          badge.setAttribute("class", "path-badge");
+          if (hollowNodes) {
+            badge.setAttribute("x", p.x - p.r + 2);
+            badge.setAttribute("y", p.y - p.r + 2);
+            badge.setAttribute("class", "path-badge corner");
+          } else {
+            badge.setAttribute("x", p.x);
+            badge.setAttribute("y", p.y);
+            badge.setAttribute("class", "path-badge");
+          }
           badge.textContent = `#${i}`;
           els.pathOverlay.appendChild(badge);
         }
