@@ -928,6 +928,10 @@ input[type="range"] {
   stroke-width: 2.5;
 }
 
+.path-overlay .path-node.hollow {
+  fill: none;
+}
+
 .path-overlay .path-node.start {
   stroke: #2f8f4e;
 }
@@ -955,6 +959,15 @@ input[type="range"] {
   text-anchor: middle;
   dominant-baseline: central;
   pointer-events: none;
+}
+
+.path-overlay .path-badge.corner {
+  text-anchor: start;
+  dominant-baseline: hanging;
+  font-size: 9px;
+  paint-order: stroke fill;
+  stroke: rgba(255, 252, 248, 0.92);
+  stroke-width: 2.5px;
 }
 
 .path-overlay .path-label {
