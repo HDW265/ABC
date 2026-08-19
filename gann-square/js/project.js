@@ -296,11 +296,17 @@
       frontier = updateFrontier(display[n], direction, frontier);
     }
 
+    const fmt = (p) => global.GannSquare.formatNumber(p);
     const secretParts = display
-      .map((prices) => prices.map((p) => global.GannSquare.formatNumber(p)).join("、"))
+      .map((prices) => {
+        const nums = prices.map(fmt);
+        if (!nums.length) return "";
+        if (nums.length === 1) return nums[0];
+        return nums.join(" — ");
+      })
       .filter((part) => part.length > 0);
-    const secretBody = secretParts.join(" — ");
-    const secretLine = `${global.GannSquare.formatNumber(startRaw)} 推 ${global.GannSquare.formatNumber(targetRaw)} · Constellate · 完整推演 = ${secretBody}`;
+    const secretBody = secretParts.join("，");
+    const secretLine = `${fmt(startRaw)} 推 ${fmt(targetRaw)} · Constellate · 完整推演 = ${secretBody}`;
 
     const allDisplayPrices = uniqueSorted(display.flat());
 
