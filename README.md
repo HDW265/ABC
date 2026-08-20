@@ -1,5 +1,17 @@
 # ABC
 
+## 扣带自动排版
+
+输入布宽、扣径、间距、成品长（全部 mm），自动生成多种排版方案图纸。
+
+| 方式 | 打开哪里 |
+|------|----------|
+| **在线** | **https://hdw265.github.io/ABC/button-tape/** |
+| **本地文件** | `button-tape/index.html` |
+| **本机服务** | `http://localhost:8080/button-tape/` |
+
+说明见 **[button-tape/README.md](./button-tape/README.md)**。
+
 ## 江恩九方图网页版
 
 完整逐步说明见：**[gann-square/README.md](./gann-square/README.md)**  
