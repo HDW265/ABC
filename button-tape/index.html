@@ -56,6 +56,7 @@
         <span>扣径 D <span class="unit">mm（必填）</span></span>
         <input id="diameter" type="number" inputmode="decimal" min="1" step="0.5" value="15" />
         <div class="chips" data-target="diameter">
+          <button type="button" data-value="8">8</button>
           <button type="button" data-value="11.5">11.5</button>
           <button type="button" data-value="15" class="on">15</button>
           <button type="button" data-value="18">18</button>
@@ -91,7 +92,7 @@
         <span>扣数 N <span class="unit">可空 = 自动选最多扣</span></span>
         <input id="count" type="number" inputmode="numeric" min="1" step="1" placeholder="自动" />
       </label>
-      <p class="hint">止口（扣中心到布边）允许 = 10 mm。自动方案只列出止口 ≤ 间距的排法，默认可点选多种效果图；手填 N 可看其它排法。</p>
+      <p class="hint">公式里的止口是扣中心到布边，允许 = 10 mm。图上另标<strong>止口位</strong>（扣外缘到布边 = 中心距边 − 扣半径）和<strong>扣径</strong>。自动方案只列出中心止口 ≤ 间距的排法；手填 N 可看其它排法。</p>
       <div class="status" id="status" role="status"></div>
     </aside>
 
@@ -110,7 +111,7 @@
           <svg id="tapeSvg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="扣带排版图纸"></svg>
         </div>
         <p class="formula-line" id="formulaLine"></p>
-        <p class="foot-note">标注为毫米。式子：止口 + 间距 × 循环 + 止口 = 成品长。</p>
+        <p class="foot-note">标注为毫米。式子：中心止口 + 间距 × 循环 + 中心止口 = 成品长。图上红色「止口」为扣外缘到布边；首扣红框为扣径。</p>
       </div>
 
       <div class="panel table-wrap hidden" id="coordPanel">

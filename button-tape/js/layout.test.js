@@ -81,6 +81,12 @@ function approx(a, b, msg) {
   assert.deepStrictEqual(xs, [15, 45, 75, 105, 135]);
 })();
 
+(function testLeftoverStop() {
+  approx(L.leftoverMm(25, 8), 21);
+  approx(L.leftoverMm(10, 15), 2.5);
+  approx(L.leftoverMm(15, 15), 7.5);
+})();
+
 (function testDrawingMode() {
   assert.strictEqual(L.drawingMode(150, 5, 40), "full");
   assert.strictEqual(L.drawingMode(450, 15, 30), "full-table");

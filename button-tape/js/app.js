@@ -190,15 +190,20 @@
       return;
     }
 
+    var leftover = Layout.leftoverMm(selection.scheme.M, spec.D);
     var bits = [
       "当前 " + selection.scheme.N + " 扣",
-      "止口 " + Layout.formatMm(selection.scheme.M) + " mm",
-      "下限 " + Layout.formatMm(plan.mMin) + " mm",
+      "中心止口 " + Layout.formatMm(selection.scheme.M) + " mm",
+      "止口位 " + Layout.formatMm(leftover) + " mm",
+      "扣径 " + Layout.formatMm(spec.D) + " mm",
     ];
     if (selection.warning) {
       statusBox("warn", bits.join(" · ") + "。" + selection.warning);
     } else {
-      statusBox("ok", bits.join(" · ") + "。左右止口均分，已满足 ≥ 10 mm。");
+      statusBox(
+        "ok",
+        bits.join(" · ") + "。止口位 = 中心到边 − 扣半径；左右均分，中心止口 ≥ 10 mm。"
+      );
     }
     renderDrawing(plan.spec, selection.scheme);
   }

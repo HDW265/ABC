@@ -51,6 +51,11 @@
     return (length - (count - 1) * spacing) / 2;
   }
 
+  /** 止口位：扣外缘到布边 = 中心到边 − 扣半径 */
+  function leftoverMm(margin, diameter) {
+    return roundMm(Number(margin) - Number(diameter) / 2);
+  }
+
   function buttonCenters(margin, spacing, count) {
     var xs = [];
     var i;
@@ -283,6 +288,7 @@
     mMin: mMin,
     nMax: nMax,
     marginFor: marginFor,
+    leftoverMm: leftoverMm,
     buttonCenters: buttonCenters,
     formulaText: formulaText,
     validateSpec: validateSpec,
