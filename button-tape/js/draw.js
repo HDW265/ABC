@@ -79,7 +79,7 @@
       })
     );
     var mid = (x1 + x2) / 2;
-    var boxW = Math.max(52, String(label).length * 7.2 + 16);
+    var boxW = Math.max(56, String(label).length * 9.5 + 18);
     var boxH = 20;
     var box = svgEl("rect", {
       x: mid - boxW / 2,
