@@ -945,10 +945,19 @@ input[type="range"] {
   stroke-width: 3;
 }
 
+.path-overlay .path-node.rebound {
+  stroke: #1f5f8a;
+}
+
 .path-overlay .path-node.active {
   stroke: #0f766e;
   stroke-width: 3.5;
   filter: drop-shadow(0 0 4px rgba(15, 118, 110, 0.45));
+}
+
+.path-overlay .path-node.rebound.active {
+  stroke: #1f5f8a;
+  filter: drop-shadow(0 0 4px rgba(31, 95, 138, 0.45));
 }
 
 .path-overlay .path-badge {
@@ -1208,6 +1217,10 @@ input[type="range"] {
 
 .path-table .mono {
   font-family: var(--font-mono);
+}
+
+.path-table .rebound-price {
+  color: #1f5f8a;
 }
 
 .path-result-actions {

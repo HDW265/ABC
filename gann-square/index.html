@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./css/styles.css?v=m18" />
+  <link rel="stylesheet" href="./css/styles.css?v=m19" />
 </head>
 <body>
   <div class="atmosphere" aria-hidden="true"></div>
@@ -123,6 +123,7 @@
           <span>方法</span>
           <div class="radio-row stacked">
             <label><input type="radio" name="pathMethod" value="constellate" checked /> Constellate（星座）跑图法</label>
+            <label><input type="radio" name="pathMethod" value="four-corner" /> 四角推图法</label>
             <label><input type="radio" name="pathMethod" value="pinwheel" /> 风车跑图法</label>
           </div>
         </div>
@@ -131,7 +132,7 @@
         </label>
 
         <div id="constellateControls">
-        <h3 class="path-subhead">Constellate</h3>
+        <h3 class="path-subhead" id="sharedPathSubhead">Constellate</h3>
         <label class="field">
           <span>起点价</span>
           <input id="pathStart" type="number" inputmode="decimal" step="any" value="922" />
@@ -148,6 +149,7 @@
             <label><input type="radio" name="pathDir" value="up" disabled /> 向上</label>
           </div>
         </div>
+        <div id="constellateOnlyControls">
         <label class="field">
           <span>规则</span>
           <select id="pathRule" disabled>
@@ -166,17 +168,19 @@
           <span>推演段数</span>
           <input id="pathSegments" type="number" min="2" max="40" value="4" step="1" />
         </label>
+        </div>
+        <p class="hint corner-only hidden" id="cornerPathHint">四角：起点只作 45° 折线原点，不跑 180°；第一版仅表 + 两色画线</p>
         <div class="field">
           <span>标注</span>
           <div class="checks compact-checks">
             <label><input type="checkbox" id="pathLabelIndex" checked /> 序号</label>
             <label><input type="checkbox" id="pathLabelPrice" /> 价位</label>
-            <label><input type="checkbox" id="pathProjectDots" checked /> 推演打点</label>
+            <label class="constellate-only"><input type="checkbox" id="pathProjectDots" checked /> 推演打点</label>
           </div>
         </div>
         <div class="checks">
           <label><input type="checkbox" id="pathAutoExpand" checked /> 自动扩环以覆盖路径</label>
-          <label><input type="checkbox" id="pathAutoSegments" checked /> 自动适配推演段数</label>
+          <label class="constellate-only"><input type="checkbox" id="pathAutoSegments" checked /> 自动适配推演段数</label>
           <label><input type="checkbox" id="pathCollapsePanels" checked /> 跑图时收起侧栏</label>
         </div>
         <div class="path-actions">
@@ -380,12 +384,12 @@
       </section>
 
       <section class="path-result hidden" id="pathResult">
-        <h2>单线路径</h2>
+        <h2 id="pathResultTitle">单线路径</h2>
         <p class="path-result-summary" id="pathResultSummary">—</p>
         <div class="path-table-wrap">
           <table class="path-table" id="pathTable">
             <thead>
-              <tr>
+              <tr id="pathTableHead">
                 <th>#</th>
                 <th>价位</th>
                 <th>步型</th>
@@ -426,8 +430,8 @@
           <li><span class="swatch cross"></span>十字轴 0°/90°</li>
           <li><span class="swatch diag"></span>对角 45°/135°</li>
           <li><span class="swatch ring"></span>环层底色交替</li>
-          <li><span class="swatch path45"></span>Constellate 45° 实线</li>
-          <li><span class="swatch path180"></span>Constellate 180° 虚线</li>
+          <li><span class="swatch path45"></span>45° 实线（星座 / 四角折线）</li>
+          <li><span class="swatch path180"></span>180° 虚线（星座 / 四角反弹）</li>
           <li><span class="swatch pinwheel-frame"></span>风车骨架（十字/对角）</li>
           <li><span class="swatch pinwheel-blade"></span>风车叶线（8 叶）</li>
           <li><span class="swatch project-dot"></span>推演目标点</li>
@@ -452,9 +456,10 @@
 
   <script src="./js/square.js?v=m17"></script>
   <script src="./js/path.js?v=m17"></script>
+  <script src="./js/corner.js?v=m19"></script>
   <script src="./js/project.js?v=m17"></script>
   <script src="./js/pinwheel.js?v=m17"></script>
   <script src="./js/draw.js?v=m17"></script>
-  <script src="./js/app.js?v=m18"></script>
+  <script src="./js/app.js?v=m19"></script>
 </body>
 </html>

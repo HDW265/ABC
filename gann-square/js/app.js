@@ -1,6 +1,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const LABEL_PATH_LINE = "Constellate · 角十角";
+  const LABEL_CORNER_PATH = "四角推图法";
   const LABEL_PINWHEEL_FRAME = "风车 · 骨架轴";
   const LABEL_PINWHEEL_SECTOR = "风车 · 叶区";
   const PINWHEEL_AXIS_LABEL = {
@@ -82,6 +83,11 @@
     btnPathRun: $("btnPathRun"),
     btnPathClear: $("btnPathClear"),
     pathSummary: $("pathSummary"),
+    sharedPathSubhead: $("sharedPathSubhead"),
+    constellateOnlyControls: $("constellateOnlyControls"),
+    cornerPathHint: $("cornerPathHint"),
+    pathResultTitle: $("pathResultTitle"),
+    pathTableHead: $("pathTableHead"),
     pathOverlay: $("pathOverlay"),
     squareStack: $("squareStack"),
     pathMinibar: $("pathMinibar"),
@@ -169,6 +175,7 @@
     pathResult: null,
     projectResult: null,
     pathActiveStep: null,
+    pathActiveKind: "45",
     pathDrawTimer: null,
     projectActivePrice: null,
     locateKey: null,
@@ -866,6 +873,34 @@
         ctx.stroke();
         ctx.setLineDash([]);
       }
+      if (state.pathResult.kind === "four-corner" && state.pathResult.rebounds) {
+        state.pathResult.rebounds.forEach((rb) => {
+          if (!rb.cell || !rb.fromCell) return;
+          const a = {
+            x: pad + rb.fromCell.col * (cell + gap) + cell / 2,
+            y: pad + rb.fromCell.row * (cell + gap) + cell / 2,
+          };
+          const b = {
+            x: pad + rb.cell.col * (cell + gap) + cell / 2,
+            y: pad + rb.cell.row * (cell + gap) + cell / 2,
+          };
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.strokeStyle = "#1f5f8a";
+          ctx.lineWidth = 2.5;
+          ctx.setLineDash([8, 5]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, cell * 0.28, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(255,252,248,0.95)";
+          ctx.fill();
+          ctx.strokeStyle = "#1f5f8a";
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+        });
+      }
       const hollowNodes =
         state.pathResult.kind === "pinwheel-frame" || state.pathResult.kind === "pinwheel-sector";
       pts.forEach((p, i) => {
@@ -953,8 +988,11 @@
   }
 
   function updateSnapHint() {
+    const method = currentPathMethod();
+    const cornerHint = "四角：45° 折线含起点；180° 只从 45° 落点反弹，起点不跑 180°";
+    const constHint = "Constellate：目标沿 45°/180° 星线落到最近结构点";
     if (!state.square || state.mode !== "price") {
-      els.pathSnapHint.textContent = "Constellate：目标沿 45°/180° 星线落到最近结构点";
+      els.pathSnapHint.textContent = method === "four-corner" ? cornerHint : constHint;
       els.pathSnapHint.classList.remove("snap-on");
       return;
     }
@@ -972,7 +1010,11 @@
       els.pathSnapHint.classList.add("snap-on");
       return;
     }
-    const preview = GannPath.runPath(state.square, {
+    const runner =
+      method === "four-corner" && window.GannCorner
+        ? GannCorner.runCornerPath
+        : GannPath.runPath;
+    const preview = runner(state.square, {
       start,
       target: raw,
       direction: sync.direction,
@@ -985,11 +1027,12 @@
     const end = preview.steps[preview.steps.length - 1].price;
     const diff = Math.abs(end - raw);
     const dirLabel = sync.direction === "up" ? "向上" : "向下";
+    const prefix = method === "four-corner" ? "四角" : dirLabel;
     if (diff < 0.5) {
-      els.pathSnapHint.textContent = `${dirLabel} · 预计落点 ${GannSquare.formatNumber(end)}`;
+      els.pathSnapHint.textContent = `${prefix} · 预计落点 ${GannSquare.formatNumber(end)}`;
       els.pathSnapHint.classList.remove("snap-on");
     } else {
-      els.pathSnapHint.textContent = `${dirLabel} · 输入 ${GannSquare.formatNumber(raw)} → 预计落点 ${GannSquare.formatNumber(end)}（差值 ${GannSquare.formatNumber(diff)}）`;
+      els.pathSnapHint.textContent = `${prefix} · 输入 ${GannSquare.formatNumber(raw)} → 预计落点 ${GannSquare.formatNumber(end)}（差值 ${GannSquare.formatNumber(diff)}）`;
       els.pathSnapHint.classList.add("snap-on");
     }
   }
@@ -1016,7 +1059,21 @@
       const cell = state.square.meta[s.cell.row] && state.square.meta[s.cell.row][s.cell.col];
       return cell ? { ...s, cell, price: cell.mode === "time" ? cell.index : cell.value } : s;
     });
-    return { ...result, steps };
+    const rebounds = (result.rebounds || []).map((rb) => {
+      const fromCell =
+        rb.fromCell && state.square.meta[rb.fromCell.row]
+          ? state.square.meta[rb.fromCell.row][rb.fromCell.col]
+          : rb.fromCell;
+      const cell =
+        rb.cell && state.square.meta[rb.cell.row] ? state.square.meta[rb.cell.row][rb.cell.col] : rb.cell;
+      return {
+        ...rb,
+        fromCell: fromCell || rb.fromCell,
+        cell: cell || rb.cell,
+        price: cell ? (cell.mode === "time" ? cell.index : cell.value) : rb.price,
+      };
+    });
+    return { ...result, steps, rebounds };
   }
 
   function clearPathOverlay() {
@@ -1057,15 +1114,21 @@
       const fam = PINWHEEL_FAMILY_LABEL[result.family] || result.familyLabel || "";
       return fam ? `${LABEL_PINWHEEL_SECTOR} · ${fam}` : LABEL_PINWHEEL_SECTOR;
     }
+    if (result && result.kind === "four-corner") return LABEL_CORNER_PATH;
     return LABEL_PATH_LINE;
   }
 
   function shouldShowActivePath() {
     if (!state.pathResult) return false;
+    const method = currentPathMethod();
+    const compare = !!(els.pathOverlayCompare && els.pathOverlayCompare.checked);
     if (state.pathResult.kind === "pinwheel-frame" || state.pathResult.kind === "pinwheel-sector") {
-      return currentPathMethod() === "pinwheel" || !!(els.pathOverlayCompare && els.pathOverlayCompare.checked);
+      return method === "pinwheel" || compare;
     }
-    return shouldShowConstellateLayers();
+    if (state.pathResult.kind === "four-corner") {
+      return method === "four-corner" || compare;
+    }
+    return method === "constellate" || compare;
   }
 
   function preparePathOverlaySize() {
@@ -1138,7 +1201,7 @@
         let cls = "path-node mid";
         if (isStart) cls = "path-node start";
         if (isEnd) cls = "path-node end";
-        if (state.pathActiveStep === i) cls += " active";
+        if (state.pathActiveStep === i && state.pathActiveKind !== "180") cls += " active";
         if (hollowNodes) cls += " hollow";
         circle.setAttribute("class", cls);
         els.pathOverlay.appendChild(circle);
@@ -1169,6 +1232,61 @@
           lab.textContent = labels.join(" · ");
           els.pathOverlay.appendChild(lab);
         }
+      }
+
+      const showRebounds =
+        resolved.kind === "four-corner" &&
+        resolved.rebounds &&
+        limit >= steps.length - 1;
+      if (showRebounds) {
+        resolved.rebounds.forEach((rb) => {
+          if (!rb.cell || !rb.fromCell) return;
+          const a = cellCenter(rb.fromCell.row, rb.fromCell.col);
+          const b = cellCenter(rb.cell.row, rb.cell.col);
+          if (!a || !b) return;
+          const line = document.createElementNS(ns, "line");
+          line.setAttribute("x1", a.x);
+          line.setAttribute("y1", a.y);
+          line.setAttribute("x2", b.x);
+          line.setAttribute("y2", b.y);
+          line.setAttribute("class", "path-line-180");
+          els.pathOverlay.appendChild(line);
+
+          const angle = Math.atan2(b.y - a.y, b.x - a.x);
+          const ah = 7;
+          const ax = b.x - Math.cos(angle) * (b.r + 2);
+          const ay = b.y - Math.sin(angle) * (b.r + 2);
+          const arrow = document.createElementNS(ns, "polygon");
+          arrow.setAttribute(
+            "points",
+            `${ax},${ay} ${ax - ah * Math.cos(angle - 0.4)},${ay - ah * Math.sin(angle - 0.4)} ${ax - ah * Math.cos(angle + 0.4)},${ay - ah * Math.sin(angle + 0.4)}`
+          );
+          arrow.setAttribute("class", "path-arrow");
+          arrow.style.color = "#1f5f8a";
+          els.pathOverlay.appendChild(arrow);
+
+          const circle = document.createElementNS(ns, "circle");
+          circle.setAttribute("cx", b.x);
+          circle.setAttribute("cy", b.y);
+          circle.setAttribute("r", b.r);
+          let cls = "path-node rebound";
+          if (state.pathActiveKind === "180" && state.pathActiveStep === rb.fromStep) {
+            cls += " active";
+          }
+          circle.setAttribute("class", cls);
+          els.pathOverlay.appendChild(circle);
+
+          const labels = [];
+          if (allowPrice) labels.push(GannSquare.formatNumber(rb.price));
+          if (labels.length) {
+            const lab = document.createElementNS(ns, "text");
+            lab.setAttribute("x", b.x);
+            lab.setAttribute("y", b.y + b.r + 11);
+            lab.setAttribute("class", "path-label");
+            lab.textContent = labels.join(" · ");
+            els.pathOverlay.appendChild(lab);
+          }
+        });
       }
     }
 
@@ -1334,9 +1452,25 @@
   function syncPathMethodUi() {
     state.pathMethod = currentPathMethod();
     const isPin = state.pathMethod === "pinwheel";
+    const isCorner = state.pathMethod === "four-corner";
+    const isConst = state.pathMethod === "constellate";
     if (els.constellateControls) els.constellateControls.classList.toggle("hidden", isPin);
     if (els.pinwheelControls) els.pinwheelControls.classList.toggle("hidden", !isPin);
+    if (els.constellateOnlyControls) els.constellateOnlyControls.classList.toggle("hidden", !isConst);
+    document.querySelectorAll(".constellate-only").forEach((el) => {
+      el.classList.toggle("hidden", !isConst);
+    });
+    document.querySelectorAll(".corner-only").forEach((el) => {
+      el.classList.toggle("hidden", !isCorner);
+    });
+    if (els.sharedPathSubhead) {
+      els.sharedPathSubhead.textContent = isCorner ? "四角推图法" : "Constellate";
+    }
+    if (els.btnPathRun) {
+      els.btnPathRun.textContent = isCorner ? "四角推图法" : "Constellate跑图法";
+    }
     updatePinwheelHints();
+    updateSnapHint();
   }
 
   function updatePinwheelHints() {
@@ -1579,6 +1713,7 @@
     state.pathResult = result;
     state.projectResult = null;
     state.pathActiveStep = null;
+    state.pathActiveKind = "45";
     state.projectActivePrice = null;
     clearLocateHighlight();
     updateProjectPanel(null);
@@ -2042,6 +2177,28 @@
     });
   }
 
+  function setPathTableHead(result) {
+    if (!els.pathTableHead) return;
+    if (result && result.kind === "four-corner") {
+      const down = result.direction !== "up";
+      els.pathTableHead.innerHTML = `
+        <th>#</th>
+        <th>${down ? "45°低点" : "45°高点"}</th>
+        <th>${down ? "180°反弹" : "180°回撤"}</th>
+        <th></th>
+      `;
+      if (els.pathResultTitle) els.pathResultTitle.textContent = "四角推图表";
+    } else {
+      els.pathTableHead.innerHTML = `
+        <th>#</th>
+        <th>价位</th>
+        <th>步型</th>
+        <th></th>
+      `;
+      if (els.pathResultTitle) els.pathResultTitle.textContent = "单线路径";
+    }
+  }
+
   function updatePathTable(result) {
     if (!result || !result.ok) {
       els.pathResult.classList.add("hidden");
@@ -2051,6 +2208,7 @@
     }
 
     els.pathResult.classList.remove("hidden");
+    setPathTableHead(result);
     const prices = result.steps.map((s) => GannSquare.formatNumber(s.price)).join(" → ");
     const snapNote = result.snapped
       ? `（输入 ${GannSquare.formatNumber(result.targetRaw)} → 落点 ${GannSquare.formatNumber(result.targetPrice)}）`
@@ -2060,25 +2218,56 @@
     updateMinibarFromState();
 
     els.pathTableBody.innerHTML = "";
-    result.steps.forEach((s, i) => {
-      const tr = document.createElement("tr");
-      if (state.pathActiveStep === i) tr.classList.add("active");
-      tr.innerHTML = `
-        <td class="mono">${i}</td>
-        <td class="mono">${GannSquare.formatNumber(s.price)}</td>
-        <td>${moveLabel(s.move)}</td>
-        <td><button type="button" class="btn ghost compact" data-focus="${i}">定位</button></td>
-      `;
-      tr.addEventListener("click", (e) => {
-        if (e.target.closest("button")) return;
-        focusPathStep(i);
+    if (result.kind === "four-corner") {
+      result.rebounds.forEach((rb) => {
+        const i = rb.fromStep;
+        const tr = document.createElement("tr");
+        if (state.pathActiveStep === i) tr.classList.add("active");
+        const rbText = rb.price != null ? GannSquare.formatNumber(rb.price) : "—";
+        tr.innerHTML = `
+          <td class="mono">${i}</td>
+          <td class="mono">${GannSquare.formatNumber(rb.fromPrice)}</td>
+          <td class="mono rebound-price">${rbText}</td>
+          <td>
+            <button type="button" class="btn ghost compact" data-focus="${i}">45°</button>
+            <button type="button" class="btn ghost compact" data-rebound="${i}">180°</button>
+          </td>
+        `;
+        tr.addEventListener("click", (e) => {
+          if (e.target.closest("button")) return;
+          focusPathStep(i);
+        });
+        tr.querySelector("[data-focus]").addEventListener("click", (e) => {
+          e.stopPropagation();
+          focusPathStep(i);
+        });
+        tr.querySelector("[data-rebound]").addEventListener("click", (e) => {
+          e.stopPropagation();
+          focusReboundStep(i);
+        });
+        els.pathTableBody.appendChild(tr);
       });
-      tr.querySelector("button").addEventListener("click", (e) => {
-        e.stopPropagation();
-        focusPathStep(i);
+    } else {
+      result.steps.forEach((s, i) => {
+        const tr = document.createElement("tr");
+        if (state.pathActiveStep === i) tr.classList.add("active");
+        tr.innerHTML = `
+          <td class="mono">${i}</td>
+          <td class="mono">${GannSquare.formatNumber(s.price)}</td>
+          <td>${moveLabel(s.move)}</td>
+          <td><button type="button" class="btn ghost compact" data-focus="${i}">定位</button></td>
+        `;
+        tr.addEventListener("click", (e) => {
+          if (e.target.closest("button")) return;
+          focusPathStep(i);
+        });
+        tr.querySelector("button").addEventListener("click", (e) => {
+          e.stopPropagation();
+          focusPathStep(i);
+        });
+        els.pathTableBody.appendChild(tr);
       });
-      els.pathTableBody.appendChild(tr);
-    });
+    }
 
     const mini = result.steps.map((s) => GannSquare.formatNumber(s.price)).join(" → ");
     els.pathMinibarText.textContent = `${pathLineLabel(result)} · ${mini}${result.reached ? " ✓" : ""}`;
@@ -2086,15 +2275,29 @@
     els.pathMinibar.classList.toggle("hidden", !collapsed || !result.ok);
   }
 
+  function locatePathCell(cell) {
+    if (!cell) return;
+    selectCell(cell);
+    const el = els.square.querySelector(`[data-row="${cell.row}"][data-col="${cell.col}"]`);
+    if (el) el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+  }
+
   function focusPathStep(index) {
     if (!state.pathResult) return;
     state.pathActiveStep = index;
+    state.pathActiveKind = "45";
     const step = state.pathResult.steps[index];
-    if (step) {
-      selectCell(step.cell);
-      const el = els.square.querySelector(`[data-row="${step.cell.row}"][data-col="${step.cell.col}"]`);
-      if (el) el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
-    }
+    if (step) locatePathCell(step.cell);
+    drawPathOverlay(state.pathResult);
+    updatePathTable(state.pathResult);
+  }
+
+  function focusReboundStep(index) {
+    if (!state.pathResult || !state.pathResult.rebounds) return;
+    state.pathActiveStep = index;
+    state.pathActiveKind = "180";
+    const rb = state.pathResult.rebounds.find((x) => x.fromStep === index);
+    if (rb && rb.cell) locatePathCell(rb.cell);
     drawPathOverlay(state.pathResult);
     updatePathTable(state.pathResult);
   }
@@ -2114,7 +2317,81 @@
     tick();
   }
 
+  function runCornerPathFlow() {
+    if (state.mode !== "price") {
+      showToast("请先切换到价格模式");
+      return;
+    }
+    if (!window.GannCorner) {
+      showToast("四角模块未加载");
+      return;
+    }
+    const start = Number(els.pathStart.value);
+    const target = Number(els.pathTarget.value);
+    if (!Number.isFinite(start) || !Number.isFinite(target)) {
+      showToast("请输入有效起点与目标");
+      return;
+    }
+
+    const sync = syncPathDirectionFromPrices();
+    if (sync.same) {
+      updateSnapHint();
+      showToast("起点与目标相同，无法判定方向，请调整高低点");
+      return;
+    }
+
+    if (els.pathAutoExpand && els.pathAutoExpand.checked) {
+      if (ensureRingsForPath(start, target)) render();
+    }
+
+    updateSnapHint();
+
+    clearTimeout(state.pathDrawTimer);
+    state.pathResult = null;
+    state.projectResult = null;
+    state.pathActiveStep = null;
+    state.pathActiveKind = "45";
+    state.projectActivePrice = null;
+    clearLocateHighlight();
+    clearPathOverlay();
+    updatePathTable(null);
+    updateProjectPanel(null);
+
+    const result = GannCorner.runCornerPath(state.square, {
+      start,
+      target,
+      direction: sync.direction,
+    });
+    if (!result.ok) {
+      showToast(result.message || "四角推图失败");
+      return;
+    }
+
+    state.pathResult = result;
+    updatePathTable(result);
+    if (els.pathCollapsePanels && els.pathCollapsePanels.checked) {
+      setPanelCollapsed("left", true);
+      setPanelCollapsed("right", true);
+    }
+    els.hlCross.checked = true;
+    els.hlDiag.checked = true;
+    animatePath(result);
+    const first = result.steps[0];
+    if (first) {
+      const el = els.square.querySelector(
+        `[data-row="${first.cell.row}"][data-col="${first.cell.col}"]`
+      );
+      if (el) el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+    }
+    updateMinibarFromState();
+    showToast(result.reached ? "四角推图完成" : "四角推图结束");
+  }
+
   function runPathFlow() {
+    if (currentPathMethod() === "four-corner") {
+      runCornerPathFlow();
+      return;
+    }
     if (state.mode !== "price") {
       showToast("请先切换到价格模式");
       return;
@@ -2170,6 +2447,7 @@
     state.pathResult = null;
     state.projectResult = null;
     state.pathActiveStep = null;
+    state.pathActiveKind = "45";
     state.projectActivePrice = null;
     clearLocateHighlight();
     clearPathOverlay();
@@ -2272,6 +2550,7 @@
     state.pathResult = null;
     state.projectResult = null;
     state.pathActiveStep = null;
+    state.pathActiveKind = "45";
     state.projectActivePrice = null;
     clearLocateHighlight();
     clearPathOverlay();
@@ -2283,15 +2562,25 @@
 
   async function copyPath() {
     if (!state.pathResult) return;
-    const text = `${pathLineLabel(state.pathResult)} · ${state.pathResult.steps
-      .map((s) => GannSquare.formatNumber(s.price))
-      .join(" → ")}`;
+    const text =
+      state.pathResult.kind === "four-corner"
+        ? `${pathLineLabel(state.pathResult)} · ${state.pathResult.steps
+            .map((s) => GannSquare.formatNumber(s.price))
+            .join(" → ")}\n${(state.pathResult.rebounds || [])
+            .filter((rb) => rb.price != null)
+            .map((rb) => `${GannSquare.formatNumber(rb.fromPrice)}→${GannSquare.formatNumber(rb.price)}`)
+            .join("，")}`
+        : `${pathLineLabel(state.pathResult)} · ${state.pathResult.steps
+            .map((s) => GannSquare.formatNumber(s.price))
+            .join(" → ")}`;
     try {
       await navigator.clipboard.writeText(text);
       showToast(
         state.pathResult.kind === "pinwheel-frame" || state.pathResult.kind === "pinwheel-sector"
           ? "风车路径已复制"
-          : "角十角路径已复制"
+          : state.pathResult.kind === "four-corner"
+            ? "四角推图表已复制"
+            : "角十角路径已复制"
       );
     } catch (err) {
       showToast("复制失败");
@@ -2300,12 +2589,32 @@
 
   function exportPathCsv() {
     if (!state.pathResult) return;
-    const lines = ["step,price,move,row,col,ring,transform"];
-    state.pathResult.steps.forEach((s) => {
-      lines.push(
-        [s.step, s.price, s.move, s.cell.row, s.cell.col, s.cell.ring, s.transform || ""].join(",")
-      );
-    });
+    const lines =
+      state.pathResult.kind === "four-corner"
+        ? ["step,price45,price180,row45,col45,row180,col180,expanded"]
+        : ["step,price,move,row,col,ring,transform"];
+    if (state.pathResult.kind === "four-corner") {
+      state.pathResult.rebounds.forEach((rb) => {
+        lines.push(
+          [
+            rb.fromStep,
+            rb.fromPrice,
+            rb.price ?? "",
+            rb.fromCell?.row ?? "",
+            rb.fromCell?.col ?? "",
+            rb.cell?.row ?? "",
+            rb.cell?.col ?? "",
+            rb.expanded ? 1 : 0,
+          ].join(",")
+        );
+      });
+    } else {
+      state.pathResult.steps.forEach((s) => {
+        lines.push(
+          [s.step, s.price, s.move, s.cell.row, s.cell.col, s.cell.ring, s.transform || ""].join(",")
+        );
+      });
+    }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -2346,6 +2655,7 @@
     state.pathResult = null;
     state.projectResult = null;
     state.pathActiveStep = null;
+    state.pathActiveKind = "45";
     state.projectActivePrice = null;
     clearPathOverlay();
     updatePathTable(null);
