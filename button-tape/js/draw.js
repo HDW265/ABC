@@ -642,6 +642,23 @@
       ctx.fillStyle = "#f7f3ee";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      if (root.SiteCredit) {
+        var creditH = (root.SiteCredit.footerHeight || 40) * scale;
+        var taller = document.createElement("canvas");
+        taller.width = canvas.width;
+        taller.height = canvas.height + creditH;
+        var tctx = taller.getContext("2d");
+        tctx.fillStyle = "#f7f3ee";
+        tctx.fillRect(0, 0, taller.width, taller.height);
+        tctx.drawImage(canvas, 0, 0);
+        root.SiteCredit.paint(tctx, taller.width, canvas.height + 8 * scale, {
+          padX: 16 * scale,
+          lineH: 16 * scale,
+          font: 11 * scale + "px sans-serif",
+          color: "#5c6b73",
+        });
+        canvas = taller;
+      }
       URL.revokeObjectURL(url);
       var a = document.createElement("a");
       a.href = canvas.toDataURL("image/png");

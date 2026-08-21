@@ -367,6 +367,21 @@ body {
   font-size: 0.8rem;
 }
 
+.footer.site-credit {
+  padding: 0.4rem 1.5rem 1.6rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.footer.site-credit p {
+  margin: 0.15rem 0;
+}
+
+.footer.site-credit a {
+  color: var(--teal);
+}
+
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;
@@ -386,6 +401,12 @@ body {
   .controls,
   .scheme-panel {
     display: none !important;
+  }
+
+  .footer.site-credit {
+    display: block !important;
+    padding: 0.8rem 0 0;
+    color: #333;
   }
 
   .layout {

@@ -43,3 +43,10 @@
 完整图文说明见 [gann-square/README.md](./gann-square/README.md#方式-c本机小服务器预览最稳)
 
 **结论：不必为了“能用网页”而必须下载源码**——部署到 GitHub Pages 后，用链接即可；本机预览才需要本地文件。
+
+## 版权与引用
+
+© 2026 起 深圳市思科达科技有限公司　开发总监：谢俊昌  
+联系：xjcxjc265@gmail.com  
+开源仓库：https://github.com/HDW265/ABC  
+引用请注明：深圳市思科达科技有限公司 / 谢俊昌，https://github.com/HDW265/ABC

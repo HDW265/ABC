@@ -350,3 +350,10 @@ gann-square/
 ├── PATH_ALGORITHM.md    ← Constellate 算法归档（定稿）
 └── README.md            ← 本说明
 ```
+
+## 版权与引用
+
+© 2026 起 深圳市思科达科技有限公司　开发总监：谢俊昌  
+联系：xjcxjc265@gmail.com  
+开源仓库：https://github.com/HDW265/ABC  
+引用请注明：深圳市思科达科技有限公司 / 谢俊昌，https://github.com/HDW265/ABC

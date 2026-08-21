@@ -819,12 +819,13 @@
     const pad = 8;
     const width = pad * 2 + size * cell + (size - 1) * gap;
     const height = width;
+    const creditH = window.SiteCredit ? window.SiteCredit.footerHeight : 0;
     const canvas = document.createElement("canvas");
     canvas.width = width;
-    canvas.height = height;
+    canvas.height = height + creditH;
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#eef2f0";
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     for (let r = 0; r < size; r += 1) {
       for (let c = 0; c < size; c += 1) {
@@ -893,6 +894,15 @@
 
     if (state.draw && state.draw.objects && state.draw.objects.length) {
       GannDraw.paintToCanvas(ctx, state.draw, { pad, cell, gap });
+    }
+
+    if (window.SiteCredit) {
+      window.SiteCredit.paint(ctx, canvas.width, height + 8, {
+        padX: 10,
+        lineH: 14,
+        font: "11px sans-serif",
+        color: "#5c6b73",
+      });
     }
 
     const a = document.createElement("a");
