@@ -71,8 +71,34 @@ const up = ctx.GannCorner.runCornerPath(sq, {
 const wantUp = [...want45].reverse();
 check("up 45° chain", up.ok && up.steps.map((s) => s.price).join("-") === wantUp.join("-"), up.steps.map((s) => s.price).join(" → "));
 check("up start 660 has no 180°", up.rebounds.every((rb) => rb.fromStep !== 0));
-const rb694 = up.rebounds.find((rb) => rb.fromPrice === 694);
-check("up 694 pullback is lower (634)", rb694 && rb694.price === 634 && rb694.price < 694, rb694 ? String(rb694.price) : "missing");
+
+const wantUp180 = {
+  694: 634,
+  712: 668,
+  748: 685,
+  766: 721,
+  804: 738,
+  822: 776,
+  862: 793,
+  880: 833,
+  922: 850,
+};
+const gotUp180 = {};
+up.rebounds.forEach((rb) => {
+  gotUp180[rb.fromPrice] = rb.price;
+});
+const upPairs = Object.keys(wantUp180)
+  .map(Number)
+  .map((p) => `${p}→${gotUp180[p]}`)
+  .join(", ");
+check(
+  "up 180° pullback table",
+  Object.keys(wantUp180).every((p) => gotUp180[Number(p)] === wantUp180[Number(p)]),
+  upPairs
+);
+check("up 748 inward to 685", up.rebounds.find((rb) => rb.fromPrice === 748)?.expanded === true);
+check("up 694 exact opposite no expand", up.rebounds.find((rb) => rb.fromPrice === 694)?.expanded === false);
+check("up all pullbacks lower", up.rebounds.every((rb) => rb.price != null && rb.price < rb.fromPrice));
 check("up reached 922", up.reached === true);
 
 if (failed) {

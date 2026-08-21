@@ -14,12 +14,18 @@
  *
  * 180° geometry: |dr|≥|dc| → same-column flip (dr,dc)→(−dr,dc);
  *   |dc|>|dr| → same-row flip (dr,dc)→(dr,−dc). If that cell is not a
- *   valid rebound, expand +1 ring (and further if needed) on that axis.
+ *   valid rebound/pullback: down expands +1 ring outward on that axis;
+ *   up shrinks one ring inward on the opposite side (e.g. 748→685).
  *
  * Canonical down (begin=1, step=1, rings≥17):
  *   922 → 880 → 862 → 822 → 804 → 766 → 748 → 712 → 694 → 660
  *   880→952, 862→910, 822→891, 804→851, 766→832, 748→794,
  *   712→775, 694→739, 660→720
+ *
+ * Canonical up (same square):
+ *   660 → 694 → 712 → 748 → 766 → 804 → 822 → 862 → 880 → 922
+ *   694→634, 712→668, 748→685, 766→721, 804→738, 822→776,
+ *   862→793, 880→833, 922→850
  */
 (function (global) {
   const ALGORITHM_NAME = "FourCorner";
@@ -72,7 +78,9 @@
   }
 
   /**
-   * 180° rebound from a 45° landing (not from start).
+   * 180° rebound/pullback from a 45° landing (not from start).
+   * Down: opposite must be higher; if exact flip is not, walk outward.
+   * Up: opposite must be lower; if exact flip is not, walk inward.
    */
   function rebound180(square, cell, direction) {
     const dr = cell.row - square.cx;
@@ -100,16 +108,46 @@
 
     const mag0 = preferCol ? Math.abs(dr) : Math.abs(dc);
     const maxMag = square.cx;
-    for (let mag = mag0; mag <= maxMag; mag += 1) {
-      const next = preferCol ? cellAt(square, oppSign * mag, dc) : cellAt(square, dr, oppSign * mag);
-      if (isValidRebound(fromPrice, next, direction)) {
-        return {
-          cell: next,
-          expanded: mag !== mag0,
-          axis,
-          transform,
-          reflectGap: mag - mag0,
-        };
+    const atMag = (mag) =>
+      preferCol ? cellAt(square, oppSign * mag, dc) : cellAt(square, dr, oppSign * mag);
+
+    const exact = atMag(mag0);
+    if (isValidRebound(fromPrice, exact, direction)) {
+      return {
+        cell: exact,
+        expanded: false,
+        axis,
+        transform,
+        reflectGap: 0,
+      };
+    }
+
+    // Down needs higher → walk outward; up needs lower → walk inward.
+    if (direction === "down") {
+      for (let mag = mag0 + 1; mag <= maxMag; mag += 1) {
+        const next = atMag(mag);
+        if (isValidRebound(fromPrice, next, direction)) {
+          return {
+            cell: next,
+            expanded: true,
+            axis,
+            transform,
+            reflectGap: mag - mag0,
+          };
+        }
+      }
+    } else {
+      for (let mag = mag0 - 1; mag >= 1; mag -= 1) {
+        const next = atMag(mag);
+        if (isValidRebound(fromPrice, next, direction)) {
+          return {
+            cell: next,
+            expanded: true,
+            axis,
+            transform,
+            reflectGap: mag0 - mag,
+          };
+        }
       }
     }
 
