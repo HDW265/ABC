@@ -78,18 +78,19 @@
         "marker-end": "url(#dimArrow)",
       })
     );
-    var mid = (x1 + x2) / 2;
-    var boxW = Math.max(56, String(label).length * 9.5 + 18);
+    var boxW = badgeWidth(label);
     var boxH = 20;
-    var box = svgEl("rect", {
-      x: mid - boxW / 2,
-      y: y - boxH / 2,
-      width: boxW,
-      height: boxH,
-      rx: 4,
-      fill: opts.fill || "#c62828",
-    });
-    parent.appendChild(box);
+    var mid = opts.labelX != null ? opts.labelX : (x1 + x2) / 2;
+    parent.appendChild(
+      svgEl("rect", {
+        x: mid - boxW / 2,
+        y: y - boxH / 2,
+        width: boxW,
+        height: boxH,
+        rx: 4,
+        fill: opts.fill || "#c62828",
+      })
+    );
     var text = svgEl("text", {
       x: mid,
       y: y + 5,
@@ -101,6 +102,11 @@
     });
     text.textContent = label;
     parent.appendChild(text);
+    return { x: mid - boxW / 2, y: y - boxH / 2, w: boxW, h: boxH };
+  }
+
+  function badgeWidth(text) {
+    return Math.max(56, String(text).length * 9.5 + 18);
   }
 
   function guide(parent, x, y1, y2) {
@@ -201,7 +207,7 @@
     opts = opts || {};
     var fontSize = opts.fontSize || 11;
     var boxH = opts.height || 18;
-    var boxW = Math.max(opts.minWidth || 48, String(text).length * 7.3 + 14);
+    var boxW = Math.max(opts.minWidth || 48, badgeWidth(text) - 6);
     parent.appendChild(
       svgEl("rect", {
         x: cx - boxW / 2,
@@ -224,9 +230,10 @@
     });
     t.textContent = text;
     parent.appendChild(t);
+    return { x: cx - boxW / 2, y: cy - boxH / 2, w: boxW, h: boxH };
   }
 
-  function drawStopZone(parent, xEdge, xRim, y0, tapeH, leftover, side) {
+  function drawStopZone(parent, xEdge, xRim, y0, tapeH, leftover, side, bounds) {
     var left = Math.min(xEdge, xRim);
     var right = Math.max(xEdge, xRim);
     var w = right - left;
@@ -244,39 +251,34 @@
       })
     );
     var mid = (left + right) / 2;
-    var value = Layout.formatMm(leftover) + " mm";
-    if (w >= 64 && tapeH >= 34) {
-      var title = svgEl("text", {
-        x: mid,
-        y: y0 + 13,
-        "text-anchor": "middle",
-        fill: "#c62828",
-        "font-size": 11,
-        "font-weight": 700,
-        "font-family": "Outfit, 'Noto Sans SC', sans-serif",
-      });
-      title.textContent = "止口";
-      parent.appendChild(title);
-      var dimY = y0 + tapeH * 0.62;
-      if (w >= 72) {
-        dimLine(parent, left + 5, right - 5, dimY, value);
-      } else {
-        labelBadge(parent, mid, dimY, value);
-      }
-    } else {
-      var bx = side === "right" ? Math.min(right - 2, right) : Math.max(left + 2, left);
-      labelBadge(parent, bx, y0 - 40, "止口 " + value, { minWidth: 78, fontSize: 10 });
-      parent.appendChild(
-        svgEl("line", {
-          x1: mid,
-          y1: y0 + 2,
-          x2: bx,
-          y2: y0 - 31,
-          stroke: "#c62828",
-          "stroke-width": 1,
-        })
-      );
+    var label = "止口 " + Layout.formatMm(leftover) + " mm";
+    var needW = badgeWidth(label) + 8;
+    if (w >= needW && tapeH >= 34) {
+      dimLine(parent, left + 4, right - 4, y0 + tapeH * 0.62, label);
+      return;
     }
+    var boxW = badgeWidth(label);
+    var cy = y0 + tapeH + 16;
+    var cx;
+    if (side === "left") {
+      cx = xEdge - 10 - boxW / 2;
+      if (cx < boxW / 2 + 4) cx = boxW / 2 + 4;
+    } else {
+      var maxX = bounds && bounds.maxX ? bounds.maxX : xEdge + 160;
+      cx = xEdge + 10 + boxW / 2;
+      if (cx + boxW / 2 > maxX - 4) cx = maxX - 4 - boxW / 2;
+    }
+    labelBadge(parent, cx, cy, label, { minWidth: 78, fontSize: 10 });
+    parent.appendChild(
+      svgEl("line", {
+        x1: mid,
+        y1: y0 + tapeH - 2,
+        x2: side === "left" ? cx + boxW / 2 - 4 : cx - boxW / 2 + 4,
+        y2: cy - 9,
+        stroke: "#c62828",
+        "stroke-width": 1,
+      })
+    );
   }
 
   function drawDiameterCallout(parent, cx, cy, r, diameterMm) {
@@ -306,17 +308,26 @@
         "marker-end": "url(#dimArrow)",
       })
     );
-    labelBadge(
-      parent,
-      cx,
-      cy + r + pad + 13,
-      "扣径 " + Layout.formatMm(diameterMm) + " mm",
-      { minWidth: 78 }
+    var bx = cx + r + Math.max(26, r * 0.85);
+    var by = cy + r + 10;
+    parent.appendChild(
+      svgEl("line", {
+        x1: cx + r + pad,
+        y1: cy + r * 0.15,
+        x2: bx - 38,
+        y2: by,
+        stroke: "#c62828",
+        "stroke-width": 1,
+      })
     );
+    labelBadge(parent, bx, by, "扣径 " + Layout.formatMm(diameterMm) + " mm", {
+      minWidth: 78,
+    });
   }
 
   function drawCallouts(parent, spec, scheme, geom) {
     var leftover = Layout.leftoverMm(scheme.M, spec.D);
+    var bounds = { maxX: geom.viewW || 900 };
     drawStopZone(
       parent,
       geom.x0,
@@ -324,7 +335,8 @@
       geom.y0,
       geom.tapeH,
       leftover,
-      "left"
+      "left",
+      bounds
     );
     drawStopZone(
       parent,
@@ -333,15 +345,38 @@
       geom.y0,
       geom.tapeH,
       leftover,
-      "right"
+      "right",
+      bounds
     );
     drawDiameterCallout(parent, geom.firstX, geom.cy, geom.btnR, spec.D);
+  }
+
+  function spacingGapIndex(scheme, x0, scale) {
+    if (scheme.N < 3) return 0;
+    var firstX = x0 + scheme.buttonXs[0] * scale;
+    var leftMid = (x0 + firstX) / 2;
+    var gap0mid = x0 + ((scheme.buttonXs[0] + scheme.buttonXs[1]) / 2) * scale;
+    if (Math.abs(gap0mid - leftMid) < 80) return 1;
+    return 0;
+  }
+
+  function drawCenterDims(parent, x0, x1, firstX, lastX, dimY, marginMm) {
+    var leftLabel = "中心 " + Layout.formatMm(marginMm);
+    var leftW = badgeWidth(leftLabel);
+    var leftSpan = Math.abs(firstX - x0);
+    dimLine(parent, x0, firstX, dimY, leftLabel, {
+      labelX: leftSpan < leftW ? firstX : (x0 + firstX) / 2,
+    });
+    var rightSpan = Math.abs(x1 - lastX);
+    dimLine(parent, lastX, x1, dimY, leftLabel, {
+      labelX: rightSpan < leftW ? lastX : (lastX + x1) / 2,
+    });
   }
 
   function drawFull(svg, spec, scheme, pixelWidth, withEveryGap) {
     var basePad = 56;
     var padT = 108;
-    var padB = 96;
+    var padB = 110;
     var over = ghostOverhangMm(spec, scheme);
     var scale = (Math.max(280, pixelWidth - 2 * basePad)) / (spec.L + over.left + over.right);
     var padL = basePad + over.left * scale;
@@ -388,33 +423,22 @@
     var dimY = y0 - 22;
     var firstX = x0 + scheme.buttonXs[0] * scale;
     var lastX = x0 + scheme.buttonXs[scheme.N - 1] * scale;
-    var mPx = Math.abs(firstX - x0);
-    var mY = mPx < 64 ? dimY - 24 : dimY;
-    guide(svg, x0, y0, mY + 8);
+    guide(svg, x0, y0, dimY + 8);
     guide(svg, firstX, y0, dimY + 8);
     guide(svg, lastX, y0, dimY + 8);
-    guide(svg, x1, y0, mY + 8);
+    guide(svg, x1, y0, dimY + 8);
 
-    dimLine(svg, x0, firstX, mY, "中心 " + Layout.formatMm(scheme.M));
-    dimLine(svg, lastX, x1, mY, "中心 " + Layout.formatMm(scheme.M));
+    drawCenterDims(svg, x0, x1, firstX, lastX, dimY, scheme.M);
 
     if (scheme.N >= 2) {
-      var a = x0 + scheme.buttonXs[0] * scale;
-      var b = x0 + scheme.buttonXs[1] * scale;
+      var gi = spacingGapIndex(scheme, x0, scale);
+      var a = x0 + scheme.buttonXs[gi] * scale;
+      var b = x0 + scheme.buttonXs[gi + 1] * scale;
       var label = Layout.formatMm(scheme.S) + " mm";
       if (scheme.cycles > 1) {
         label = Layout.formatMm(scheme.S) + "×" + scheme.cycles;
       }
       dimLine(svg, a, b, dimY, label);
-      if (withEveryGap && scheme.N === 3) {
-        dimLine(
-          svg,
-          x0 + scheme.buttonXs[1] * scale,
-          x0 + scheme.buttonXs[2] * scale,
-          dimY,
-          Layout.formatMm(scheme.S) + " mm"
-        );
-      }
     }
 
     drawCallouts(svg, spec, scheme, {
@@ -426,10 +450,11 @@
       firstX: firstX,
       lastX: lastX,
       btnR: btnR,
+      viewW: pixelWidth,
     });
     drawGhostPair(svg, spec, firstX, lastX, cy, scale, btnR);
 
-    var totalY = y0 + tapeH + 52;
+    var totalY = y0 + tapeH + 64;
     guide(svg, x0, y0 + tapeH, totalY);
     guide(svg, x1, y0 + tapeH, totalY);
     dimLine(svg, x0, x1, totalY, Layout.formatMm(spec.L) + " mm", {
@@ -520,19 +545,20 @@
 
     var dimY = y0 - 22;
     var firstX = leftX + scheme.buttonXs[0] * scale;
-    dimLine(svg, leftX, firstX, dimY, "中心 " + Layout.formatMm(scheme.M));
+    var lastX = rightX + (scheme.buttonXs[scheme.N - 1] - rightStartMm) * scale;
+    var rightEdge = rightX + rightW;
+    drawCenterDims(svg, leftX, rightEdge, firstX, lastX, dimY, scheme.M);
     if (leftCount >= 2) {
+      var gi = spacingGapIndex(scheme, leftX, scale);
+      if (gi > leftCount - 2) gi = 0;
       dimLine(
         svg,
-        leftX + scheme.buttonXs[0] * scale,
-        leftX + scheme.buttonXs[1] * scale,
+        leftX + scheme.buttonXs[gi] * scale,
+        leftX + scheme.buttonXs[gi + 1] * scale,
         dimY,
         Layout.formatMm(scheme.S) + "×" + scheme.cycles
       );
     }
-    var lastX = rightX + (scheme.buttonXs[scheme.N - 1] - rightStartMm) * scale;
-    var rightEdge = rightX + rightW;
-    dimLine(svg, lastX, rightEdge, dimY, "中心 " + Layout.formatMm(scheme.M));
     drawCallouts(svg, spec, scheme, {
       x0: leftX,
       x1: rightEdge,
@@ -542,6 +568,7 @@
       firstX: firstX,
       lastX: lastX,
       btnR: btnR,
+      viewW: pixelWidth,
     });
     drawGhostPair(svg, spec, firstX, lastX, cy, scale, btnR);
 
