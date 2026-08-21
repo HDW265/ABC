@@ -65,6 +65,14 @@
     return xs;
   }
 
+  /** 两侧循环虚线扣中心：左 = M−S，右 = L−M+S，不计入扣数 */
+  function ghostCenters(margin, spacing, length) {
+    return {
+      left: roundMm(Number(margin) - Number(spacing)),
+      right: roundMm(Number(length) - Number(margin) + Number(spacing)),
+    };
+  }
+
   function formulaText(scheme) {
     if (!scheme) return "";
     if (scheme.N === 1) {
@@ -290,6 +298,7 @@
     marginFor: marginFor,
     leftoverMm: leftoverMm,
     buttonCenters: buttonCenters,
+    ghostCenters: ghostCenters,
     formulaText: formulaText,
     validateSpec: validateSpec,
     schemeFor: schemeFor,

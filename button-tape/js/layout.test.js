@@ -87,6 +87,18 @@ function approx(a, b, msg) {
   approx(L.leftoverMm(15, 15), 7.5);
 })();
 
+(function testGhostCenters() {
+  var g5 = L.ghostCenters(25, 30, 170);
+  approx(g5.left, -5);
+  approx(g5.right, 175);
+  var g6 = L.ghostCenters(10, 30, 170);
+  approx(g6.left, -20);
+  approx(g6.right, 190);
+  var g4 = L.ghostCenters(40, 30, 170);
+  approx(g4.left, 10);
+  approx(g4.right, 160);
+})();
+
 (function testDrawingMode() {
   assert.strictEqual(L.drawingMode(150, 5, 40), "full");
   assert.strictEqual(L.drawingMode(450, 15, 30), "full-table");

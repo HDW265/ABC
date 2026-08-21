@@ -117,46 +117,34 @@
     );
   }
 
-  function drawButton(parent, cx, cy, r, holes) {
+  function drawButton(parent, cx, cy, r, ghost) {
+    var strokeW = Math.max(1.1, r * (ghost ? 0.12 : 0.1));
     parent.appendChild(
       svgEl("circle", {
         cx: cx,
         cy: cy,
         r: r,
-        fill: "#fffefb",
-        stroke: "#b7b1a8",
-        "stroke-width": Math.max(1, r * 0.08),
+        fill: ghost ? "rgba(255, 254, 251, 0.18)" : "#fffefb",
+        stroke: ghost ? "#8a847a" : "#b7b1a8",
+        "stroke-width": strokeW,
+        "stroke-dasharray": ghost ? String(Math.max(2.5, r * 0.28)) + " " + String(Math.max(2, r * 0.2)) : "none",
+        opacity: ghost ? "0.85" : "1",
       })
     );
-    parent.appendChild(
-      svgEl("circle", {
-        cx: cx,
-        cy: cy,
-        r: r * 0.78,
-        fill: "none",
-        stroke: "rgba(140,130,120,0.28)",
-        "stroke-width": 1,
-      })
-    );
-    if (r >= 7 && holes) {
-      var d = r * 0.28;
-      var hr = Math.max(1.1, r * 0.09);
-      [
-        [-d, -d],
-        [d, -d],
-        [-d, d],
-        [d, d],
-      ].forEach(function (p) {
-        parent.appendChild(
-          svgEl("circle", {
-            cx: cx + p[0],
-            cy: cy + p[1],
-            r: hr,
-            fill: "#c5c0b8",
-          })
-        );
-      });
-    }
+  }
+
+  function ghostOverhangMm(spec, scheme) {
+    var g = Layout.ghostCenters(scheme.M, spec.S, spec.L);
+    var r = spec.D / 2;
+    return {
+      left: Math.max(0, -g.left + r),
+      right: Math.max(0, g.right - spec.L + r),
+    };
+  }
+
+  function drawGhostPair(parent, spec, firstX, lastX, cy, scale, btnR) {
+    drawButton(parent, firstX - spec.S * scale, cy, btnR, true);
+    drawButton(parent, lastX + spec.S * scale, cy, btnR, true);
   }
 
   function drawTapeBody(parent, x, y, w, h) {
@@ -351,12 +339,13 @@
   }
 
   function drawFull(svg, spec, scheme, pixelWidth, withEveryGap) {
-    var padL = 56;
-    var padR = 56;
+    var basePad = 56;
     var padT = 108;
     var padB = 96;
-    var innerW = Math.max(280, pixelWidth - padL - padR);
-    var scale = innerW / spec.L;
+    var over = ghostOverhangMm(spec, scheme);
+    var scale = (Math.max(280, pixelWidth - 2 * basePad)) / (spec.L + over.left + over.right);
+    var padL = basePad + over.left * scale;
+    var padR = basePad + over.right * scale;
     var tapeH = Math.max(36, spec.W * scale);
     var btnR = (spec.D * scale) / 2;
     if (btnR * 2 > tapeH * 0.96) {
@@ -375,7 +364,7 @@
 
     caption(
       svg,
-      padL,
+      24,
       28,
       "布宽 " +
         Layout.formatMm(spec.W) +
@@ -388,12 +377,12 @@
         " 循环",
       13
     );
-    caption(svg, padL, 48, scheme.formula, 16);
+    caption(svg, 24, 48, scheme.formula, 16);
 
     drawTapeBody(svg, x0, y0, x1 - x0, tapeH);
 
     scheme.buttonXs.forEach(function (mm) {
-      drawButton(svg, x0 + mm * scale, cy, btnR, true);
+      drawButton(svg, x0 + mm * scale, cy, btnR, false);
     });
 
     var dimY = y0 - 22;
@@ -438,6 +427,7 @@
       lastX: lastX,
       btnR: btnR,
     });
+    drawGhostPair(svg, spec, firstX, lastX, cy, scale, btnR);
 
     var totalY = y0 + tapeH + 52;
     guide(svg, x0, y0 + tapeH, totalY);
@@ -464,8 +454,13 @@
     var rightStartMm = scheme.buttonXs[scheme.N - rightCount] - spec.D / 2 - 6;
     if (rightStartMm < 0) rightStartMm = 0;
     var rightMm = spec.L - rightStartMm;
-    var inner = Math.max(280, pixelWidth - padL - padR - gapW);
-    var scale = inner / (leftMm + rightMm);
+    var over = ghostOverhangMm(spec, scheme);
+    var basePad = 40;
+    var scale =
+      (Math.max(280, pixelWidth - 2 * basePad - gapW)) /
+      (leftMm + rightMm + over.left + over.right);
+    padL = basePad + over.left * scale;
+    padR = basePad + over.right * scale;
     var tapeH = Math.max(32, spec.W * scale);
     var btnR = (spec.D * scale) / 2;
     if (btnR < 8) {
@@ -500,7 +495,7 @@
     drawTapeBody(svg, leftX, y0, leftW, tapeH);
     var i;
     for (i = 0; i < leftCount; i += 1) {
-      drawButton(svg, leftX + scheme.buttonXs[i] * scale, cy, btnR, true);
+      drawButton(svg, leftX + scheme.buttonXs[i] * scale, cy, btnR, false);
     }
 
     var ellX = leftX + leftW + gapW / 2;
@@ -520,7 +515,7 @@
     drawTapeBody(svg, rightX, y0, rightW, tapeH);
     for (i = scheme.N - rightCount; i < scheme.N; i += 1) {
       var mx = scheme.buttonXs[i] - rightStartMm;
-      drawButton(svg, rightX + mx * scale, cy, btnR, true);
+      drawButton(svg, rightX + mx * scale, cy, btnR, false);
     }
 
     var dimY = y0 - 22;
@@ -548,6 +543,7 @@
       lastX: lastX,
       btnR: btnR,
     });
+    drawGhostPair(svg, spec, firstX, lastX, cy, scale, btnR);
 
     var overviewY = y0 + tapeH + 28;
     var ovX = padL;
