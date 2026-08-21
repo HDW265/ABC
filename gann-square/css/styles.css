@@ -1174,32 +1174,79 @@ input[type="range"] {
   color: var(--ink-soft);
 }
 
+.path-table-shell {
+  margin-bottom: 0.55rem;
+}
+
 .path-table-wrap {
   overflow: auto;
-  max-height: 220px;
-  margin-bottom: 0.55rem;
+  height: var(--path-table-h, 220px);
+  max-height: none;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+}
+
+.path-table-resizer {
+  position: relative;
+  height: 10px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+  background: rgba(255, 252, 248, 0.96);
+  outline: none;
+}
+
+.path-table-resizer::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 36px;
+  height: 3px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: rgba(20, 32, 40, 0.2);
+  transition: background 0.15s ease, width 0.15s ease, box-shadow 0.15s ease;
+  pointer-events: none;
+}
+
+.path-table-resizer:hover::after,
+.path-table-resizer:focus-visible::after,
+.path-table-resizer.is-active::after {
+  width: 48px;
+  background: rgba(184, 101, 47, 0.65);
+  box-shadow: 0 0 0 2px rgba(184, 101, 47, 0.18);
+}
+
+body.path-table-resizing {
+  cursor: ns-resize !important;
+  user-select: none !important;
 }
 
 .path-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
 }
 
 .path-table th,
 .path-table td {
-  padding: 0.4rem 0.5rem;
+  padding: 0.22rem 0.45rem;
   text-align: left;
   border-bottom: 1px solid var(--line);
+  line-height: 1.25;
 }
 
 .path-table th {
   position: sticky;
   top: 0;
   background: rgba(255, 252, 248, 0.96);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -1221,6 +1268,30 @@ input[type="range"] {
 
 .path-table .rebound-price {
   color: #1f5f8a;
+}
+
+.path-table .price-hit {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.path-table .price-hit:hover {
+  background: rgba(31, 111, 106, 0.12);
+}
+
+.path-table .price-hit.rebound-price:hover {
+  background: rgba(31, 95, 138, 0.12);
+}
+
+.path-table .price-hit.is-active {
+  background: rgba(15, 118, 110, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.35);
+}
+
+.path-table .price-hit.rebound-price.is-active {
+  background: rgba(31, 95, 138, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(31, 95, 138, 0.4);
 }
 
 .path-result-actions {

@@ -96,6 +96,9 @@
     pathResult: $("pathResult"),
     pathResultSummary: $("pathResultSummary"),
     pathTableBody: $("pathTableBody"),
+    pathTableWrap: $("pathTableWrap"),
+    pathTableShell: $("pathTableShell"),
+    resizePathTable: $("resizePathTable"),
     btnPathCopy: $("btnPathCopy"),
     btnPathExport: $("btnPathExport"),
     projectResult: $("projectResult"),
@@ -159,6 +162,11 @@
     rightMin: 260,
     rightMax: 560,
   };
+  const PATH_TABLE_HEIGHT = {
+    default: 220,
+    min: 120,
+    max: 420,
+  };
 
   const state = {
     mode: "price",
@@ -172,6 +180,7 @@
     rightCollapsed: false,
     leftWidth: PANEL_WIDTH.leftDefault,
     rightWidth: PANEL_WIDTH.rightDefault,
+    pathTableHeight: PATH_TABLE_HEIGHT.default,
     pathResult: null,
     projectResult: null,
     pathActiveStep: null,
@@ -195,6 +204,9 @@
       if (typeof prefs.rightCollapsed === "boolean") state.rightCollapsed = prefs.rightCollapsed;
       if (Number.isFinite(prefs.leftWidth)) state.leftWidth = clampPanelWidth("left", prefs.leftWidth);
       if (Number.isFinite(prefs.rightWidth)) state.rightWidth = clampPanelWidth("right", prefs.rightWidth);
+      if (Number.isFinite(prefs.pathTableHeight)) {
+        state.pathTableHeight = clampPathTableHeight(prefs.pathTableHeight);
+      }
     } catch (err) {
       /* ignore */
     }
@@ -209,8 +221,93 @@
         rightCollapsed: state.rightCollapsed,
         leftWidth: state.leftWidth,
         rightWidth: state.rightWidth,
+        pathTableHeight: state.pathTableHeight,
       })
     );
+  }
+
+  function clampPathTableHeight(value) {
+    const n = Math.round(Number(value));
+    if (!Number.isFinite(n)) return PATH_TABLE_HEIGHT.default;
+    return Math.min(PATH_TABLE_HEIGHT.max, Math.max(PATH_TABLE_HEIGHT.min, n));
+  }
+
+  function applyPathTableHeight() {
+    const h = clampPathTableHeight(state.pathTableHeight);
+    state.pathTableHeight = h;
+    if (els.pathTableWrap) {
+      els.pathTableWrap.style.setProperty("--path-table-h", `${h}px`);
+    }
+    if (els.resizePathTable) {
+      els.resizePathTable.setAttribute("aria-valuenow", String(h));
+      els.resizePathTable.setAttribute("aria-valuemin", String(PATH_TABLE_HEIGHT.min));
+      els.resizePathTable.setAttribute("aria-valuemax", String(PATH_TABLE_HEIGHT.max));
+    }
+  }
+
+  function bindPathTableResizer() {
+    const el = els.resizePathTable;
+    if (!el || !els.pathTableWrap) return;
+
+    el.addEventListener("dblclick", () => {
+      state.pathTableHeight = PATH_TABLE_HEIGHT.default;
+      applyPathTableHeight();
+      savePrefs();
+      showToast("路径表已恢复默认高度");
+    });
+
+    el.addEventListener("keydown", (ev) => {
+      const step = ev.shiftKey ? 24 : 12;
+      let next = state.pathTableHeight;
+      if (ev.key === "ArrowUp") next -= step;
+      else if (ev.key === "ArrowDown") next += step;
+      else return;
+      ev.preventDefault();
+      state.pathTableHeight = clampPathTableHeight(next);
+      applyPathTableHeight();
+      savePrefs();
+    });
+
+    const startDrag = (clientY, pointerId) => {
+      const startY = clientY;
+      const startH = state.pathTableHeight;
+      document.body.classList.add("path-table-resizing");
+      el.classList.add("is-active");
+
+      const onMove = (moveEv) => {
+        const y = moveEv.clientY != null ? moveEv.clientY : moveEv.touches?.[0]?.clientY;
+        if (!Number.isFinite(y)) return;
+        state.pathTableHeight = clampPathTableHeight(startH + (y - startY));
+        applyPathTableHeight();
+      };
+
+      const onUp = () => {
+        document.body.classList.remove("path-table-resizing");
+        el.classList.remove("is-active");
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        savePrefs();
+      };
+
+      if (pointerId != null && el.setPointerCapture) {
+        try {
+          el.setPointerCapture(pointerId);
+        } catch (err) {
+          /* ignore */
+        }
+      }
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+      return true;
+    };
+
+    el.addEventListener("pointerdown", (ev) => {
+      if (ev.button != null && ev.button !== 0) return;
+      ev.preventDefault();
+      startDrag(ev.clientY, ev.pointerId);
+    });
   }
 
   function clampPanelWidth(side, value) {
@@ -2185,9 +2282,9 @@
         <th>#</th>
         <th>${down ? "45°低点" : "45°高点"}</th>
         <th>${down ? "180°反弹" : "180°回撤"}</th>
-        <th></th>
       `;
       if (els.pathResultTitle) els.pathResultTitle.textContent = "四角推图表";
+      if (els.pathTableShell) els.pathTableShell.classList.add("is-corner");
     } else {
       els.pathTableHead.innerHTML = `
         <th>#</th>
@@ -2196,6 +2293,7 @@
         <th></th>
       `;
       if (els.pathResultTitle) els.pathResultTitle.textContent = "单线路径";
+      if (els.pathTableShell) els.pathTableShell.classList.remove("is-corner");
     }
   }
 
@@ -2224,27 +2322,32 @@
         const tr = document.createElement("tr");
         if (state.pathActiveStep === i) tr.classList.add("active");
         const rbText = rb.price != null ? GannSquare.formatNumber(rb.price) : "—";
+        const active45 = state.pathActiveStep === i && state.pathActiveKind !== "180";
+        const active180 = state.pathActiveStep === i && state.pathActiveKind === "180";
         tr.innerHTML = `
           <td class="mono">${i}</td>
-          <td class="mono">${GannSquare.formatNumber(rb.fromPrice)}</td>
-          <td class="mono rebound-price">${rbText}</td>
-          <td>
-            <button type="button" class="btn ghost compact" data-focus="${i}">45°</button>
-            <button type="button" class="btn ghost compact" data-rebound="${i}">180°</button>
-          </td>
+          <td class="mono price-hit${active45 ? " is-active" : ""}" data-focus="${i}" title="定位 45° 落点">${GannSquare.formatNumber(rb.fromPrice)}</td>
+          <td class="mono rebound-price price-hit${active180 ? " is-active" : ""}" data-rebound="${i}" title="定位 180° 反弹">${rbText}</td>
         `;
         tr.addEventListener("click", (e) => {
-          if (e.target.closest("button")) return;
+          if (e.target.closest("[data-rebound]")) return;
+          if (e.target.closest("[data-focus]")) return;
           focusPathStep(i);
         });
-        tr.querySelector("[data-focus]").addEventListener("click", (e) => {
-          e.stopPropagation();
-          focusPathStep(i);
-        });
-        tr.querySelector("[data-rebound]").addEventListener("click", (e) => {
-          e.stopPropagation();
-          focusReboundStep(i);
-        });
+        const focusCell = tr.querySelector("[data-focus]");
+        const reboundCell = tr.querySelector("[data-rebound]");
+        if (focusCell) {
+          focusCell.addEventListener("click", (e) => {
+            e.stopPropagation();
+            focusPathStep(i);
+          });
+        }
+        if (reboundCell) {
+          reboundCell.addEventListener("click", (e) => {
+            e.stopPropagation();
+            focusReboundStep(i);
+          });
+        }
         els.pathTableBody.appendChild(tr);
       });
     } else {
@@ -2887,6 +2990,8 @@
     setPanelCollapsed("right", state.rightCollapsed);
     bind();
     bindPanelResizers();
+    applyPathTableHeight();
+    bindPathTableResizer();
     const fromUrl = loadUrlState();
     if (!fromUrl) applyParams({ mode: "price", begin: 1, step: 1, rings: 6 });
     syncPathMethodUi();

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./css/styles.css?v=m19" />
+  <link rel="stylesheet" href="./css/styles.css?v=m20" />
 </head>
 <body>
   <div class="atmosphere" aria-hidden="true"></div>
@@ -386,18 +386,29 @@
       <section class="path-result hidden" id="pathResult">
         <h2 id="pathResultTitle">单线路径</h2>
         <p class="path-result-summary" id="pathResultSummary">—</p>
-        <div class="path-table-wrap">
-          <table class="path-table" id="pathTable">
-            <thead>
-              <tr id="pathTableHead">
-                <th>#</th>
-                <th>价位</th>
-                <th>步型</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="pathTableBody"></tbody>
-          </table>
+        <div class="path-table-shell" id="pathTableShell">
+          <div class="path-table-wrap" id="pathTableWrap">
+            <table class="path-table" id="pathTable">
+              <thead>
+                <tr id="pathTableHead">
+                  <th>#</th>
+                  <th>价位</th>
+                  <th>步型</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="pathTableBody"></tbody>
+            </table>
+          </div>
+          <div
+            class="path-table-resizer"
+            id="resizePathTable"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="拖动调整路径表高度"
+            title="拖动调整高度 · 双击恢复默认"
+            tabindex="0"
+          ></div>
         </div>
         <div class="path-result-actions">
           <button type="button" class="btn ghost compact" id="btnPathCopy">复制路径</button>
@@ -460,6 +471,6 @@
   <script src="./js/project.js?v=m17"></script>
   <script src="./js/pinwheel.js?v=m17"></script>
   <script src="./js/draw.js?v=m17"></script>
-  <script src="./js/app.js?v=m19"></script>
+  <script src="./js/app.js?v=m20"></script>
 </body>
 </html>
