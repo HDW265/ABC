@@ -308,13 +308,13 @@
         "marker-end": "url(#dimArrow)",
       })
     );
-    var bx = cx + r + Math.max(26, r * 0.85);
-    var by = cy + r + 10;
+    var bx = cx + r + Math.max(34, r * 1.1);
+    var by = cy + Math.min(10, r * 0.25);
     parent.appendChild(
       svgEl("line", {
         x1: cx + r + pad,
-        y1: cy + r * 0.15,
-        x2: bx - 38,
+        y1: cy,
+        x2: bx - 40,
         y2: by,
         stroke: "#c62828",
         "stroke-width": 1,
