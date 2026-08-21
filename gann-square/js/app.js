@@ -271,12 +271,17 @@
     const startDrag = (clientY, pointerId) => {
       const startY = clientY;
       const startH = state.pathTableHeight;
-      document.body.classList.add("path-table-resizing");
-      el.classList.add("is-active");
+      let dragging = false;
 
       const onMove = (moveEv) => {
         const y = moveEv.clientY != null ? moveEv.clientY : moveEv.touches?.[0]?.clientY;
         if (!Number.isFinite(y)) return;
+        if (!dragging) {
+          if (Math.abs(y - startY) < 4) return;
+          dragging = true;
+          document.body.classList.add("path-table-resizing");
+          el.classList.add("is-active");
+        }
         state.pathTableHeight = clampPathTableHeight(startH + (y - startY));
         applyPathTableHeight();
       };
@@ -287,7 +292,7 @@
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         window.removeEventListener("pointercancel", onUp);
-        savePrefs();
+        if (dragging) savePrefs();
       };
 
       if (pointerId != null && el.setPointerCapture) {
