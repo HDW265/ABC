@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>扣带自动排版 · Button Tape</title>
-  <meta name="description" content="输入布宽、扣径、间距和成品长，自动生成多种扣带排版方案图纸。" />
+  <meta name="description" content="输入布宽、扣径、间距和成品长，自动生成扣带排版图纸；细数分配表按规格数量与损耗自动计码长。" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
@@ -16,7 +16,7 @@
   <header class="topbar">
     <div>
       <p class="brand">扣带自动排版</p>
-      <p class="brand-sub">布宽 · 扣径 · 间距 · 成品长（全部 mm）→ 多种方案图纸</p>
+      <p class="brand-sub">布宽 · 扣径 · 间距 · 成品长（mm）→ 图纸；细数分配自动计码长</p>
     </div>
     <div class="top-actions">
       <a class="btn ghost" href="../gann-square/">江恩九方图</a>
@@ -123,6 +123,57 @@
           <tbody id="coordBody"></tbody>
         </table>
       </div>
+
+      <div class="panel yardage-panel" id="yardagePanel">
+        <div class="scheme-head">
+          <h2>细数分配 · 计码长</h2>
+          <span class="unit">单件长用 cm，与纸质分配表一致；点「排版」把该档成品长填入图纸</span>
+        </div>
+        <div class="yardage-meta">
+          <label class="field">
+            <span>合同号</span>
+            <input id="contractNo" type="text" placeholder="如 LCM26-0210" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>办单号</span>
+            <input id="orderNo" type="text" placeholder="如 LC-S026-0401" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>损耗 <span class="unit">%</span></span>
+            <input id="lossPct" type="number" inputmode="decimal" min="0" step="0.5" value="5" />
+            <div class="chips" data-target="lossPct">
+              <button type="button" data-value="0">0</button>
+              <button type="button" data-value="3">3</button>
+              <button type="button" data-value="5" class="on">5</button>
+              <button type="button" data-value="8">8</button>
+              <button type="button" data-value="10">10</button>
+            </div>
+          </label>
+        </div>
+        <div class="yardage-scroll">
+          <table class="yardage-table">
+            <thead>
+              <tr>
+                <th>规格 SIZE</th>
+                <th>单件长 cm</th>
+                <th>成品长 mm</th>
+                <th>数量</th>
+                <th>小计 m</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="yardageBody"></tbody>
+          </table>
+        </div>
+        <div class="yardage-actions">
+          <button type="button" class="btn ghost" id="btnAddSize">加一档规格</button>
+          <button type="button" class="btn ghost" id="btnYardageExample">填入图例 LCM26-0210</button>
+          <button type="button" class="btn ghost" id="btnCopyYardage">复制码长</button>
+        </div>
+        <div class="yardage-totals" id="yardageTotals" role="status"></div>
+        <p class="formula-line" id="yardageFormula"></p>
+        <p class="foot-note">式子：码长(yd) = Σ(单件长 cm × 数量) × (1 + 损耗%) ÷ 91.44。建议下单按 0.1 码进位，避免短码。</p>
+      </div>
     </section>
   </main>
 
@@ -137,6 +188,7 @@
 
   <script src="../site-credit.js"></script>
   <script src="./js/layout.js"></script>
+  <script src="./js/yardage.js"></script>
   <script src="./js/draw.js"></script>
   <script src="./js/app.js"></script>
 </body>

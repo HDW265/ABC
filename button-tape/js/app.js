@@ -3,6 +3,7 @@
 
   var Layout = window.ButtonTapeLayout;
   var Draw = window.ButtonTapeDraw;
+  var Yardage = window.ButtonTapeYardage;
 
   var els = {
     width: document.getElementById("width"),
@@ -21,11 +22,25 @@
     ex150: document.getElementById("ex150"),
     btnPrint: document.getElementById("btnPrint"),
     btnExportPng: document.getElementById("btnExportPng"),
+    contractNo: document.getElementById("contractNo"),
+    orderNo: document.getElementById("orderNo"),
+    lossPct: document.getElementById("lossPct"),
+    yardageBody: document.getElementById("yardageBody"),
+    yardageTotals: document.getElementById("yardageTotals"),
+    yardageFormula: document.getElementById("yardageFormula"),
+    btnAddSize: document.getElementById("btnAddSize"),
+    btnYardageExample: document.getElementById("btnYardageExample"),
+    btnCopyYardage: document.getElementById("btnCopyYardage"),
   };
 
   var selectedN = 6;
   var lastPlan = null;
   var lastDraw = null;
+  var lastYardage = null;
+  var yardageState = {
+    selected: -1,
+    rows: Yardage.exampleBundle().rows,
+  };
 
   function num(el) {
     return parseFloat(String(el.value).trim());
@@ -208,6 +223,167 @@
     renderDrawing(plan.spec, selection.scheme);
   }
 
+  function yardageMeta() {
+    return {
+      contractNo: els.contractNo.value.trim(),
+      orderNo: els.orderNo.value.trim(),
+    };
+  }
+
+  function currentYardage() {
+    return Yardage.summarize(yardageState.rows, els.lossPct.value);
+  }
+
+  function markSelectedRow() {
+    if (!els.yardageBody) return;
+    Array.prototype.forEach.call(els.yardageBody.rows, function (tr, i) {
+      tr.classList.toggle("selected", i === yardageState.selected);
+    });
+  }
+
+  function applyRowToLayout(index) {
+    var row = yardageState.rows[index];
+    if (!row) return;
+    var mm = Yardage.lengthMm(row.lengthCm);
+    if (!isFinite(mm) || !(mm > 0)) return;
+    yardageState.selected = index;
+    els.length.value = String(mm);
+    els.count.value = "";
+    render();
+    markSelectedRow();
+  }
+
+  function updateRowComputed(tr, row) {
+    var parsed = Yardage.parseRow(row, 0);
+    var mmCell = tr.querySelector("[data-role=mm]");
+    var subCell = tr.querySelector("[data-role=sub]");
+    if (parsed.ok) {
+      mmCell.textContent = Layout.formatMm(parsed.lengthMm);
+      subCell.textContent = Yardage.formatFixed(parsed.subtotalM, 2);
+    } else if (Yardage.rowIsEmpty(row)) {
+      mmCell.textContent = "—";
+      subCell.textContent = "—";
+    } else {
+      var mm = Yardage.lengthMm(row.lengthCm);
+      mmCell.textContent = isFinite(mm) ? Layout.formatMm(mm) : "—";
+      subCell.textContent = "—";
+    }
+  }
+
+  function renderYardageTotals() {
+    setChipState();
+    var result = currentYardage();
+    lastYardage = result;
+    els.yardageFormula.textContent = result.ok ? Yardage.formulaLine(result) : "";
+    if (!result.ok) {
+      els.yardageTotals.className = "yardage-totals err";
+      els.yardageTotals.textContent =
+        result.errors.length ? result.errors.join("；") : "请填写各规格的单件长和数量";
+      return;
+    }
+    els.yardageTotals.className = "yardage-totals";
+    els.yardageTotals.innerHTML =
+      '<div class="yardage-stat"><span>净长</span><strong>' +
+      Yardage.formatFixed(result.netM, 2) +
+      " m</strong></div>" +
+      '<div class="yardage-stat"><span>损耗 ' +
+      Yardage.formatNum(result.lossPercent, 2) +
+      "%</span><strong>" +
+      Yardage.formatFixed(result.wasteM, 2) +
+      " m</strong></div>" +
+      '<div class="yardage-stat"><span>含损耗</span><strong>' +
+      Yardage.formatFixed(result.grossM, 2) +
+      " m</strong></div>" +
+      '<div class="yardage-stat accent"><span>码长</span><strong>' +
+      Yardage.formatFixed(result.yards, 2) +
+      " yd</strong></div>" +
+      '<div class="yardage-stat accent"><span>建议下单</span><strong>' +
+      Yardage.formatFixed(result.orderYards, 1) +
+      " 码</strong></div>";
+  }
+
+  function bindYardageRow(tr, index) {
+    var row = yardageState.rows[index];
+    tr.querySelector("[data-k=name]").addEventListener("input", function () {
+      row.name = this.value;
+    });
+    tr.querySelector("[data-k=length]").addEventListener("input", function () {
+      row.lengthCm = this.value;
+      updateRowComputed(tr, row);
+      renderYardageTotals();
+    });
+    tr.querySelector("[data-k=qty]").addEventListener("input", function () {
+      row.qty = this.value;
+      updateRowComputed(tr, row);
+      renderYardageTotals();
+    });
+    tr.querySelector("[data-act=layout]").addEventListener("click", function () {
+      applyRowToLayout(index);
+    });
+    tr.querySelector("[data-act=remove]").addEventListener("click", function () {
+      yardageState.rows.splice(index, 1);
+      if (!yardageState.rows.length) yardageState.rows.push(Yardage.blankRow());
+      if (yardageState.selected === index) yardageState.selected = -1;
+      else if (yardageState.selected > index) yardageState.selected -= 1;
+      renderYardageTable();
+    });
+  }
+
+  function renderYardageTable() {
+    els.yardageBody.innerHTML = "";
+    yardageState.rows.forEach(function (row, index) {
+      var tr = document.createElement("tr");
+      if (index === yardageState.selected) tr.classList.add("selected");
+      tr.innerHTML =
+        '<td><input data-k="name" type="text" spellcheck="false" placeholder="如 6/12 AY" /></td>' +
+        '<td><input data-k="length" type="number" inputmode="decimal" min="0" step="0.1" placeholder="cm" /></td>' +
+        '<td data-role="mm" class="num">—</td>' +
+        '<td><input data-k="qty" type="number" inputmode="numeric" min="0" step="1" placeholder="件数" /></td>' +
+        '<td data-role="sub" class="num">—</td>' +
+        '<td class="row-acts">' +
+        '<button type="button" class="btn-mini" data-act="layout">排版</button>' +
+        '<button type="button" class="btn-mini danger" data-act="remove">删</button>' +
+        "</td>";
+      var nameInput = tr.querySelector("[data-k=name]");
+      var lenInput = tr.querySelector("[data-k=length]");
+      var qtyInput = tr.querySelector("[data-k=qty]");
+      nameInput.value = row.name == null ? "" : String(row.name);
+      if (!Yardage.isBlank(row.lengthCm)) lenInput.value = String(row.lengthCm);
+      if (!Yardage.isBlank(row.qty)) qtyInput.value = String(row.qty);
+      updateRowComputed(tr, row);
+      bindYardageRow(tr, index);
+      els.yardageBody.appendChild(tr);
+    });
+    renderYardageTotals();
+  }
+
+  function loadYardageExample() {
+    var bundle = Yardage.exampleBundle();
+    els.contractNo.value = bundle.contractNo;
+    els.orderNo.value = bundle.orderNo;
+    els.lossPct.value = String(bundle.lossPercent);
+    yardageState.rows = bundle.rows;
+    yardageState.selected = -1;
+    renderYardageTable();
+  }
+
+  function copyYardage() {
+    var text = Yardage.summaryText(currentYardage(), yardageMeta());
+    var done = function () {
+      els.btnCopyYardage.textContent = "已复制";
+      setTimeout(function () {
+        els.btnCopyYardage.textContent = "复制码长";
+      }, 1200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () {
+        window.prompt("复制码长", text);
+      });
+    } else {
+      window.prompt("复制码长", text);
+    }
+  }
+
   ["width", "diameter", "spacing", "length", "count"].forEach(function (id) {
     els[id].addEventListener("input", render);
   });
@@ -216,9 +392,18 @@
     btn.addEventListener("click", function () {
       var id = btn.parentElement.getAttribute("data-target");
       document.getElementById(id).value = btn.getAttribute("data-value");
-      render();
+      if (id === "lossPct") renderYardageTotals();
+      else render();
     });
   });
+
+  els.lossPct.addEventListener("input", renderYardageTotals);
+  els.btnAddSize.addEventListener("click", function () {
+    yardageState.rows.push(Yardage.blankRow());
+    renderYardageTable();
+  });
+  els.btnYardageExample.addEventListener("click", loadYardageExample);
+  els.btnCopyYardage.addEventListener("click", copyYardage);
 
   els.ex170.addEventListener("click", function () {
     applyPreset("170");
@@ -244,5 +429,6 @@
     if (lastPlan && lastPlan.ok) render();
   });
 
+  loadYardageExample();
   render();
 })();

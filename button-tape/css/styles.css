@@ -244,7 +244,8 @@ body {
 
 .scheme-panel,
 .board,
-.table-wrap {
+.table-wrap,
+.yardage-panel {
   padding: 1rem 1.1rem;
 }
 
@@ -258,7 +259,8 @@ body {
 
 .scheme-head h2,
 .board h2,
-.table-wrap h2 {
+.table-wrap h2,
+.yardage-panel h2 {
   margin: 0;
   font-size: 0.95rem;
 }
@@ -367,6 +369,141 @@ body {
   font-size: 0.8rem;
 }
 
+.yardage-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+  margin: 0.4rem 0 0.85rem;
+}
+
+.yardage-meta .field {
+  margin-bottom: 0;
+}
+
+.yardage-scroll {
+  overflow-x: auto;
+}
+
+.yardage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 0.88rem var(--font-mono);
+}
+
+.yardage-table th,
+.yardage-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 0.35rem 0.3rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.yardage-table th {
+  color: var(--muted);
+  font: 600 0.75rem var(--font-ui);
+  letter-spacing: 0.04em;
+}
+
+.yardage-table input {
+  width: 100%;
+  min-width: 4.5rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.4rem 0.5rem;
+  font: 500 0.9rem var(--font-mono);
+  background: #fff;
+  color: var(--ink);
+}
+
+.yardage-table input:focus {
+  outline: 2px solid rgba(31, 111, 106, 0.35);
+  border-color: var(--teal);
+}
+
+.yardage-table .num {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.yardage-table tr.selected td {
+  background: rgba(31, 111, 106, 0.08);
+}
+
+.row-acts {
+  white-space: nowrap;
+}
+
+.btn-mini {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  margin-right: 0.25rem;
+  font: 600 0.75rem var(--font-ui);
+  cursor: pointer;
+  color: var(--ink-soft);
+}
+
+.btn-mini:hover {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+.btn-mini.danger:hover {
+  border-color: var(--dim);
+  color: var(--dim);
+}
+
+.yardage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0.75rem 0 0.5rem;
+}
+
+.yardage-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.35rem;
+}
+
+.yardage-totals.err {
+  display: block;
+  border-radius: 12px;
+  padding: 0.7rem 0.8rem;
+  background: rgba(198, 40, 40, 0.1);
+  color: #8e1d1d;
+  font-size: 0.88rem;
+}
+
+.yardage-stat {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+}
+
+.yardage-stat span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.yardage-stat strong {
+  font: 700 1.05rem var(--font-mono);
+}
+
+.yardage-stat.accent {
+  border-color: rgba(31, 111, 106, 0.45);
+  background: rgba(31, 111, 106, 0.08);
+}
+
+.yardage-stat.accent strong {
+  color: var(--teal);
+}
+
 .footer.site-credit {
   padding: 0.4rem 1.5rem 1.6rem;
   color: var(--muted);
@@ -393,13 +530,19 @@ body {
     align-items: flex-start;
     padding: 1rem 0.9rem 0.5rem;
   }
+
+  .yardage-meta {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media print {
   .atmosphere,
   .top-actions,
   .controls,
-  .scheme-panel {
+  .scheme-panel,
+  .yardage-actions,
+  .row-acts {
     display: none !important;
   }
 
