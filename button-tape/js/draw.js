@@ -326,11 +326,16 @@
   }
 
   function drawCallouts(parent, spec, scheme, geom) {
-    var leftover = Layout.leftoverMm(scheme.M, spec.D);
+    var leftover = Layout.leftoverSewableMm(scheme.M, spec.S, spec.D);
+    var invasion = Layout.ghostInvasionMm(scheme.M, spec.S, spec.D);
+    var scale = geom.scale;
+    if (!(scale > 0) || !isFinite(scale)) {
+      scale = scheme.M > 0 ? (geom.firstX - geom.x0) / scheme.M : 1;
+    }
     var bounds = { maxX: geom.viewW || 900 };
     drawStopZone(
       parent,
-      geom.x0,
+      geom.x0 + invasion * scale,
       geom.firstX - geom.btnR,
       geom.y0,
       geom.tapeH,
@@ -341,7 +346,7 @@
     drawStopZone(
       parent,
       geom.lastX + geom.btnR,
-      geom.x1,
+      geom.x1 - invasion * scale,
       geom.y0,
       geom.tapeH,
       leftover,
@@ -451,6 +456,7 @@
       lastX: lastX,
       btnR: btnR,
       viewW: pixelWidth,
+      scale: scale,
     });
     drawGhostPair(svg, spec, firstX, lastX, cy, scale, btnR);
 
@@ -569,6 +575,7 @@
       lastX: lastX,
       btnR: btnR,
       viewW: pixelWidth,
+      scale: scale,
     });
     drawGhostPair(svg, spec, firstX, lastX, cy, scale, btnR);
 

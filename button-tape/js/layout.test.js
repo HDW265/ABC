@@ -7,57 +7,73 @@ function approx(a, b, msg) {
   assert.ok(Math.abs(a - b) < 1e-6, msg || a + " ≈ " + b);
 }
 
-(function test170DualSchemes() {
-  var plan = L.plan({ W: 20, D: 15, S: 30, L: 170 });
-  assert.strictEqual(plan.ok, true);
-  assert.strictEqual(plan.nMax, 6);
-  assert.strictEqual(plan.schemes.length, 2);
-  assert.strictEqual(plan.schemes[0].N, 6);
-  approx(plan.schemes[0].M, 10);
-  assert.strictEqual(plan.schemes[0].formula, "10 + 30×5 + 10 = 170");
-  assert.strictEqual(plan.schemes[1].N, 5);
-  approx(plan.schemes[1].M, 25);
-  assert.strictEqual(plan.schemes[1].formula, "25 + 30×4 + 25 = 170");
-  var auto = L.resolveSelection(plan, null);
-  assert.strictEqual(auto.scheme.N, 6);
-  var pick5 = L.resolveSelection(plan, 5);
-  assert.strictEqual(pick5.scheme.N, 5);
-  var custom4 = L.resolveSelection(plan, 4);
-  assert.strictEqual(custom4.source, "custom");
-  approx(custom4.scheme.M, 40);
-  assert.ok(custom4.warning.indexOf("止口大于间距") !== -1);
-  var tooMany = L.resolveSelection(plan, 7);
-  assert.strictEqual(tooMany.scheme, null);
-  assert.ok(tooMany.warning.indexOf("最多只能排 6 扣") !== -1);
+(function testSewableLeftoverExamples() {
+  approx(L.leftoverSewableMm(15, 30, 8), 11);
+  approx(L.leftoverSewableMm(30, 30, 8), 22);
+  approx(L.leftoverSewableMm(10, 30, 8), 6);
+  approx(L.leftoverSewableMm(25, 30, 8), 21);
+  approx(L.ghostInvasionMm(30, 30, 8), 4);
+  approx(L.ghostInvasionMm(15, 30, 8), 0);
 })();
 
-(function test150Example() {
-  var plan = L.plan({ W: 20, D: 15, S: 30, L: 150 });
+(function test140D8DropsFiveButton() {
+  var plan = L.plan({ W: 20, D: 8, S: 30, L: 140 });
+  assert.strictEqual(plan.ok, true);
+  assert.strictEqual(plan.nMax, 4);
+  assert.strictEqual(plan.schemes.length, 1);
+  assert.strictEqual(plan.schemes[0].N, 4);
+  approx(plan.schemes[0].leftoverSewable, 21);
+  assert.strictEqual(plan.schemes[0].endsWasted, true);
+  approx(plan.schemes[0].useMm, 200);
+  var five = L.resolveSelection(plan, 5);
+  assert.strictEqual(five.source, "custom");
+  approx(five.scheme.leftoverSewable, 6);
+  assert.ok(five.warning.indexOf("不合理") !== -1);
+})();
+
+(function test150D8FiveButtonSewable11() {
+  var plan = L.plan({ W: 20, D: 8, S: 30, L: 150 });
   assert.strictEqual(plan.ok, true);
   assert.strictEqual(plan.schemes.length, 2);
   assert.strictEqual(plan.schemes[0].N, 5);
-  approx(plan.schemes[0].M, 15);
-  assert.strictEqual(plan.schemes[0].formula, "15 + 30×4 + 15 = 150");
+  approx(plan.schemes[0].leftoverSewable, 11);
+  assert.strictEqual(plan.schemes[0].endsWasted, false);
+  approx(plan.schemes[0].useMm, 150);
   assert.strictEqual(plan.schemes[1].N, 4);
-  approx(plan.schemes[1].M, 30);
-  assert.strictEqual(plan.schemes[1].formula, "30 + 30×3 + 30 = 150");
+  approx(plan.schemes[1].leftoverSewable, 22);
+  assert.strictEqual(plan.schemes[1].endsWasted, true);
+  approx(plan.schemes[1].useMm, 210);
 })();
 
-(function testMarginEqualsTenAllowed() {
-  var sch = L.schemeFor(170, 30, 6, 10);
-  assert.strictEqual(sch.valid, true);
-  assert.strictEqual(sch.auto, true);
-  approx(sch.M, 10);
-})();
-
-(function testLargeButtonRaisesMinMargin() {
-  var plan = L.plan({ W: 30, D: 25, S: 30, L: 170 });
+(function test170D15DropsSixButton() {
+  var plan = L.plan({ W: 20, D: 15, S: 30, L: 170 });
   assert.strictEqual(plan.ok, true);
-  approx(plan.mMin, 12.5);
-  assert.ok(plan.nMax <= 5);
-  plan.schemes.forEach(function (s) {
-    assert.ok(s.M + 1e-6 >= 12.5);
-  });
+  assert.strictEqual(plan.nMax, 5);
+  assert.strictEqual(plan.schemes.length, 1);
+  assert.strictEqual(plan.schemes[0].N, 5);
+  approx(plan.schemes[0].M, 25);
+  assert.strictEqual(plan.schemes[0].formula, "25 + 30×4 + 25 = 170");
+  var auto = L.resolveSelection(plan, null);
+  assert.strictEqual(auto.scheme.N, 5);
+  var six = L.resolveSelection(plan, 6);
+  assert.ok(six.warning.indexOf("不合理") !== -1);
+  approx(six.scheme.leftoverSewable, 2.5);
+  var custom4 = L.resolveSelection(plan, 4);
+  assert.strictEqual(custom4.source, "custom");
+  approx(custom4.scheme.M, 40);
+})();
+
+(function test150D15OnlyFourButton() {
+  var plan = L.plan({ W: 20, D: 15, S: 30, L: 150 });
+  assert.strictEqual(plan.ok, true);
+  assert.strictEqual(plan.schemes.length, 1);
+  assert.strictEqual(plan.schemes[0].N, 4);
+  approx(plan.schemes[0].leftoverSewable, 15);
+})();
+
+(function testMMinIsLeftover10PlusRadius() {
+  approx(L.mMin(8), 14);
+  approx(L.mMin(15), 17.5);
 })();
 
 (function testWidthSmallerThanButton() {

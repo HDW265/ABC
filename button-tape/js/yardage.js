@@ -137,7 +137,44 @@
     return { ok: true, value: n, errors: [] };
   }
 
-  function summarize(rows, lossPercent) {
+  function attachPieceUse(parsed, tape) {
+    parsed.useMm = parsed.lengthMm;
+    parsed.useCm = parsed.subtotalCm;
+    parsed.endsWasted = false;
+    parsed.schemeN = null;
+    if (!parsed || !tape || !tape.Layout || !(tape.S > 0) || !(tape.D > 0)) {
+      return;
+    }
+    var Layout = tape.Layout;
+    var spec = {
+      W: tape.W > 0 ? tape.W : tape.D,
+      D: tape.D,
+      S: tape.S,
+      L: parsed.lengthMm,
+    };
+    var plan = Layout.plan(spec);
+    var n = tape.selectedN;
+    if (
+      tape.selectedL != null &&
+      isFinite(Number(tape.selectedL)) &&
+      Math.abs(parsed.lengthMm - Number(tape.selectedL)) > 0.05
+    ) {
+      n = null;
+    }
+    var sel = Layout.resolveSelection(plan, n);
+    var sch = null;
+    if (sel.scheme && (sel.source === "auto" || sel.source === "custom")) {
+      sch = sel.scheme;
+    }
+    if (!sch && plan.schemes && plan.schemes[0]) sch = plan.schemes[0];
+    if (!sch) return;
+    parsed.useMm = sch.useMm;
+    parsed.useCm = (sch.useMm / 10) * parsed.qty;
+    parsed.endsWasted = !!sch.endsWasted;
+    parsed.schemeN = sch.N;
+  }
+
+  function summarize(rows, lossPercent, tape) {
     var loss = parseLoss(lossPercent);
     var errors = loss.errors.slice();
     var used = [];
@@ -154,12 +191,16 @@
       used.push(parsed);
     }
     var netCm = 0;
+    var useCm = 0;
     for (i = 0; i < used.length; i += 1) {
+      attachPieceUse(used[i], tape);
       netCm += used[i].subtotalCm;
+      useCm += used[i].useCm;
     }
+    var endWasteCm = useCm - netCm;
     var factor = 1 + (loss.ok ? loss.value : 0) / 100;
-    var grossCm = netCm * factor;
-    var wasteCm = grossCm - netCm;
+    var grossCm = useCm * factor;
+    var otherWasteCm = grossCm - useCm;
     var ok = errors.length === 0 && used.length > 0 && loss.ok;
     var yards = grossCm / CM_PER_YARD;
     return {
@@ -169,10 +210,14 @@
       count: used.length,
       lossPercent: loss.ok ? loss.value : NaN,
       netCm: netCm,
-      wasteCm: wasteCm,
+      useCm: useCm,
+      endWasteCm: endWasteCm,
+      wasteCm: otherWasteCm,
       grossCm: grossCm,
       netM: netCm / 100,
-      wasteM: wasteCm / 100,
+      useM: useCm / 100,
+      endWasteM: endWasteCm / 100,
+      wasteM: otherWasteCm / 100,
       grossM: grossCm / 100,
       yards: yards,
       orderYards: ceilTo(yards, 0.1),
@@ -182,9 +227,15 @@
   function formulaLine(result) {
     if (!result || !result.ok) return "";
     return (
-      "Σ(单件长 cm × 数量) = " +
+      "Σ成品 = " +
       formatNum(result.netCm, 2) +
-      " cm → × (1+" +
+      " cm" +
+      (result.endWasteCm > 0.001
+        ? " + 端扣废料 " + formatNum(result.endWasteCm, 2) + " cm"
+        : "") +
+      " → 用料 " +
+      formatNum(result.useCm, 2) +
+      " cm × (1+" +
       formatNum(result.lossPercent, 2) +
       "%) = " +
       formatNum(result.grossCm, 2) +
@@ -207,6 +258,12 @@
       prefix +
       "净长 " +
       formatFixed(result.netM, 2) +
+      " m" +
+      (result.endWasteM > 0.001
+        ? "，端扣废料 " + formatFixed(result.endWasteM, 2) + " m"
+        : "") +
+      "，用料 " +
+      formatFixed(result.useM, 2) +
       " m，损耗 " +
       formatNum(result.lossPercent, 2) +
       "%，含损耗 " +
@@ -235,7 +292,7 @@
     ceilTo: ceilTo,
     rowIsEmpty: rowIsEmpty,
     parseRow: parseRow,
-    parseLoss: parseLoss,
+    attachPieceUse: attachPieceUse,
     summarize: summarize,
     formulaLine: formulaLine,
     summaryText: summaryText,

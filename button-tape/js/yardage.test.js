@@ -88,6 +88,24 @@ function approx(a, b, msg) {
   assert.ok(text.indexOf("MIT") === -1);
 })();
 
+(function testEndWasteOnD8Example() {
+  var Lout = require("./layout.js");
+  var tape = { W: 20, D: 8, S: 30, Layout: Lout };
+  var result = Y.summarize(Y.EXAMPLE.rows, 0, tape);
+  assert.strictEqual(result.ok, true);
+  approx(result.netM, 1625);
+  assert.strictEqual(result.rows[0].endsWasted, true);
+  approx(result.rows[0].useMm, 200);
+  assert.strictEqual(result.rows[1].endsWasted, false);
+  approx(result.rows[1].useMm, 150);
+  assert.strictEqual(result.rows[2].endsWasted, true);
+  approx(result.rows[2].useMm, 225);
+  assert.strictEqual(result.rows[3].endsWasted, false);
+  approx(result.rows[3].useMm, 180);
+  approx(result.endWasteM, 60 + 180);
+  approx(result.useM, 1625 + 240);
+})();
+
 (function testFormulaLineHasNoLicense() {
   var line = Y.formulaLine(Y.summarize(Y.EXAMPLE.rows, 5));
   assert.ok(line.indexOf("91.44") !== -1);

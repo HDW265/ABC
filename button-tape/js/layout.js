@@ -1,8 +1,7 @@
 /**
  * 扣带排版计算（毫米）。
- * 成品长 L = 止口 M + 间距 S × (N-1) + 止口 M
- * 止口允许 = 10 mm；有效下限 Mmin = max(10, D/2)
- * 自动方案：Mmin ≤ M ≤ S，按扣数从多到少。
+ * 成品长 L = 中心止口 M + 间距 S × (N-1) + 中心止口 M
+ * 可车缝止口位 = M − 半径 − 伸进本片的循环扣；自动方案要求 ≥ 10 mm，且 M ≤ S。
  */
 (function (root, factory) {
   const api = factory();
@@ -38,8 +37,15 @@
     return String(r);
   }
 
+  var LEFTOVER_MIN = 10;
+
+  function leftoverMin() {
+    return LEFTOVER_MIN;
+  }
+
+  /** 无循环扣侵入时，可车缝止口位 ≥ 10 所需的中心止口 */
   function mMin(diameter) {
-    return Math.max(10, Number(diameter) / 2);
+    return LEFTOVER_MIN + Number(diameter) / 2;
   }
 
   function nMax(length, spacing, minMargin) {
@@ -51,9 +57,46 @@
     return (length - (count - 1) * spacing) / 2;
   }
 
-  /** 止口位：扣外缘到布边 = 中心到边 − 扣半径 */
+  /** 扣外缘到布边（未扣循环扣） */
   function leftoverMm(margin, diameter) {
     return roundMm(Number(margin) - Number(diameter) / 2);
+  }
+
+  /** 下一循环扣伸进本片的长度 */
+  function ghostInvasionMm(margin, spacing, diameter) {
+    var r = Number(diameter) / 2;
+    return roundMm(Math.max(0, Number(margin) - Number(spacing) + r));
+  }
+
+  /** 可车缝止口位：中心止口 − 本颗半径 − 伸进本片的循环扣 */
+  function leftoverSewableMm(margin, spacing, diameter) {
+    return roundMm(
+      leftoverMm(margin, diameter) - ghostInvasionMm(margin, spacing, diameter)
+    );
+  }
+
+  /** 下一循环扣相对裁口的净止口位（外缘到裁口） */
+  function ghostEdgeLeftoverMm(margin, spacing, diameter) {
+    var delta = Math.abs(Number(spacing) - Number(margin));
+    return roundMm(delta - Number(diameter) / 2);
+  }
+
+  function nestsSameSpec(margin, spacing) {
+    return Math.abs(Number(margin) - Number(spacing) / 2) <= EPS;
+  }
+
+  /** 成卷连裁同一规格时，两端下一循环是否作废 */
+  function endsWasted(margin, spacing, diameter) {
+    return !(
+      gte(ghostEdgeLeftoverMm(margin, spacing, diameter), LEFTOVER_MIN) &&
+      nestsSameSpec(margin, spacing)
+    );
+  }
+
+  function pieceUseMm(length, spacing, margin, diameter) {
+    var L = Number(length);
+    var S = Number(spacing);
+    return roundMm(endsWasted(margin, S, diameter) ? L + 2 * S : L);
   }
 
   function buttonCenters(margin, spacing, count) {
@@ -132,7 +175,9 @@
     var minMargin = mMin(D);
     if (!gt(L, 2 * minMargin)) {
       errors.push(
-        "成品长太短，无法保证左右止口各 ≥ " + formatMm(minMargin) + " mm"
+        "成品长太短，无法保证左右可车缝止口位各 ≥ " +
+          formatMm(LEFTOVER_MIN) +
+          " mm"
       );
     }
     return {
@@ -146,22 +191,32 @@
     };
   }
 
-  function schemeFor(length, spacing, count, minMargin) {
+  function schemeFor(length, spacing, count, diameter) {
+    var D = Number(diameter);
     var N = Math.round(Number(count));
     var M = marginFor(length, spacing, N);
     var cycles = N - 1;
-    var valid = N >= 1 && gte(M, minMargin);
-    var auto = valid && lte(M, spacing);
+    var sewable = leftoverSewableMm(M, spacing, D);
+    var valid = N >= 1 && gt(M, D / 2);
+    var auto = valid && gte(sewable, LEFTOVER_MIN) && lte(M, spacing);
     var kind = "invalid";
-    if (valid && auto) kind = "auto";
+    if (auto) kind = "auto";
     else if (valid) kind = "custom";
+    var wasted = valid ? endsWasted(M, spacing, D) : true;
     var scheme = {
       N: N,
       cycles: Math.max(0, cycles),
       M: roundMm(M),
       L: roundMm(length),
       S: roundMm(spacing),
-      mMin: roundMm(minMargin),
+      D: roundMm(D),
+      mMin: roundMm(mMin(D)),
+      leftover: leftoverMm(M, D),
+      leftoverSewable: sewable,
+      ghostInvasion: ghostInvasionMm(M, spacing, D),
+      ghostEdgeLeftover: ghostEdgeLeftoverMm(M, spacing, D),
+      endsWasted: wasted,
+      useMm: valid ? pieceUseMm(length, spacing, M, D) : roundMm(length),
       kind: kind,
       valid: valid,
       auto: auto,
@@ -178,7 +233,6 @@
   function plan(input) {
     var spec = validateSpec(input);
     var schemes = [];
-    var maxN = 0;
     if (!spec.ok) {
       return {
         ok: false,
@@ -186,30 +240,33 @@
         spec: spec,
         schemes: schemes,
         nMax: 0,
+        nFit: 0,
         mMin: spec.mMin,
       };
     }
 
-    maxN = nMax(spec.L, spec.S, spec.mMin);
-    if (maxN < 1) {
+    var nFit = nMax(spec.L, spec.S, spec.D / 2);
+    if (nFit < 1) {
       return {
         ok: false,
         errors: ["无法排出至少 1 颗扣"],
         spec: spec,
         schemes: schemes,
         nMax: 0,
+        nFit: 0,
         mMin: spec.mMin,
       };
     }
 
     var n;
     var autoIndex = 0;
-    for (n = maxN; n >= 1; n -= 1) {
-      var sch = schemeFor(spec.L, spec.S, n, spec.mMin);
+    for (n = nFit; n >= 1; n -= 1) {
+      var sch = schemeFor(spec.L, spec.S, n, spec.D);
       if (sch.auto) {
         sch.letter = letterAt(autoIndex);
         sch.title = "方案 " + sch.letter;
-        sch.subtitle = sch.N + " 扣 · 止口 " + formatMm(sch.M) + " mm";
+        sch.subtitle =
+          sch.N + " 扣 · 止口位 " + formatMm(sch.leftoverSewable) + " mm";
         autoIndex += 1;
         schemes.push(sch);
       }
@@ -220,7 +277,8 @@
       errors: [],
       spec: spec,
       schemes: schemes,
-      nMax: maxN,
+      nMax: schemes.length ? schemes[0].N : 0,
+      nFit: nFit,
       mMin: spec.mMin,
     };
   }
@@ -247,16 +305,11 @@
         warning: "扣数至少为 1",
       };
     }
-    if (n > planResult.nMax) {
+    if (n > (planResult.nFit || planResult.nMax)) {
       return {
         scheme: null,
         source: "invalid",
-        warning:
-          "止口会小于 " +
-          formatMm(planResult.mMin) +
-          " mm，最多只能排 " +
-          planResult.nMax +
-          " 扣",
+        warning: "扣会超出布条，最多只能排 " + (planResult.nFit || planResult.nMax) + " 扣",
       };
     }
     var match = planResult.schemes.find(function (s) {
@@ -265,12 +318,18 @@
     if (match) {
       return { scheme: match, source: "auto", warning: "" };
     }
-    var custom = schemeFor(spec.L, spec.S, n, spec.mMin);
+    var custom = schemeFor(spec.L, spec.S, n, spec.D);
     custom.letter = "自";
     custom.title = "自定义";
-    custom.subtitle = custom.N + " 扣 · 止口 " + formatMm(custom.M) + " mm";
+    custom.subtitle =
+      custom.N + " 扣 · 止口位 " + formatMm(custom.leftoverSewable) + " mm";
     var warning = "";
-    if (custom.valid && !custom.auto) {
+    if (custom.valid && !gte(custom.leftoverSewable, LEFTOVER_MIN)) {
+      warning =
+        "可车缝止口位 " +
+        formatMm(custom.leftoverSewable) +
+        " mm < 10 mm，不合理";
+    } else if (custom.valid && !custom.auto) {
       warning = "止口大于间距，看起来会像两端少排了一颗扣";
     }
     return { scheme: custom, source: "custom", warning: warning };
@@ -293,10 +352,17 @@
     gt: gt,
     roundMm: roundMm,
     formatMm: formatMm,
+    leftoverMin: leftoverMin,
     mMin: mMin,
     nMax: nMax,
     marginFor: marginFor,
     leftoverMm: leftoverMm,
+    ghostInvasionMm: ghostInvasionMm,
+    leftoverSewableMm: leftoverSewableMm,
+    ghostEdgeLeftoverMm: ghostEdgeLeftoverMm,
+    nestsSameSpec: nestsSameSpec,
+    endsWasted: endsWasted,
+    pieceUseMm: pieceUseMm,
     buttonCenters: buttonCenters,
     ghostCenters: ghostCenters,
     formulaText: formulaText,

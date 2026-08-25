@@ -33,7 +33,7 @@
     btnCopyYardage: document.getElementById("btnCopyYardage"),
   };
 
-  var selectedN = 6;
+  var selectedN = 5;
   var lastPlan = null;
   var lastDraw = null;
   var lastYardage = null;
@@ -82,10 +82,10 @@
     els.count.value = "";
     if (kind === "150") {
       els.length.value = "150";
-      selectedN = 5;
+      selectedN = 4;
     } else {
       els.length.value = "170";
-      selectedN = 6;
+      selectedN = 5;
     }
     render();
   }
@@ -191,6 +191,7 @@
       statusBox("err", plan.errors.join("；"));
       renderSchemes(plan, { scheme: null });
       renderDrawing(null, null);
+      refreshYardageComputed();
       return;
     }
 
@@ -202,10 +203,11 @@
     if (!selection.scheme) {
       statusBox("err", selection.warning || "无法生成图纸");
       renderDrawing(null, null);
+      refreshYardageComputed();
       return;
     }
 
-    var leftover = Layout.leftoverMm(selection.scheme.M, spec.D);
+    var leftover = Layout.leftoverSewableMm(selection.scheme.M, spec.S, spec.D);
     var bits = [
       "当前 " + selection.scheme.N + " 扣",
       "中心止口 " + Layout.formatMm(selection.scheme.M) + " mm",
@@ -215,12 +217,18 @@
     if (selection.warning) {
       statusBox("warn", bits.join(" · ") + "。" + selection.warning);
     } else {
+      var wasteNote = selection.scheme.endsWasted
+        ? "成卷连裁两端各废 1 扣，计码按成品长 + 2×间距。"
+        : "下一循环可接同一规格，计码不加端扣废料。";
       statusBox(
         "ok",
-        bits.join(" · ") + "。止口位 = 中心到边 − 扣半径；左右均分，中心止口 ≥ 10 mm。"
+        bits.join(" · ") +
+          "。可车缝止口位 ≥ 10 mm。循环扣伸进本片的部分不能车。" +
+          wasteNote
       );
     }
     renderDrawing(plan.spec, selection.scheme);
+    refreshYardageComputed();
   }
 
   function yardageMeta() {
@@ -230,8 +238,32 @@
     };
   }
 
+  function tapeOpts() {
+    var spec = currentSpec();
+    return {
+      Layout: Layout,
+      W: spec.W,
+      D: spec.D,
+      S: spec.S,
+      selectedN: requestedN(),
+      selectedL: spec.L,
+    };
+  }
+
+  function schemeForYardageLength(lengthMm) {
+    var spec = currentSpec();
+    spec.L = lengthMm;
+    var plan = Layout.plan(spec);
+    var same = Math.abs(lengthMm - num(els.length)) < 0.05;
+    if (same) {
+      var sel = Layout.resolveSelection(plan, requestedN());
+      if (sel.scheme) return sel.scheme;
+    }
+    return (plan.schemes && plan.schemes[0]) || null;
+  }
+
   function currentYardage() {
-    return Yardage.summarize(yardageState.rows, els.lossPct.value);
+    return Yardage.summarize(yardageState.rows, els.lossPct.value, tapeOpts());
   }
 
   function markSelectedRow() {
@@ -257,16 +289,27 @@
     var parsed = Yardage.parseRow(row, 0);
     var mmCell = tr.querySelector("[data-role=mm]");
     var subCell = tr.querySelector("[data-role=sub]");
+    var useCell = tr.querySelector("[data-role=use]");
     if (parsed.ok) {
       mmCell.textContent = Layout.formatMm(parsed.lengthMm);
-      subCell.textContent = Yardage.formatFixed(parsed.subtotalM, 2);
+      var sch = schemeForYardageLength(parsed.lengthMm);
+      var useMm = sch ? sch.useMm : parsed.lengthMm;
+      var finishM = parsed.subtotalM;
+      var useM = (useMm * parsed.qty) / 1000;
+      subCell.textContent = Yardage.formatFixed(finishM, 2);
+      if (useCell) {
+        useCell.textContent =
+          Yardage.formatFixed(useM, 2) + (sch && sch.endsWasted ? " 含废扣" : "");
+      }
     } else if (Yardage.rowIsEmpty(row)) {
       mmCell.textContent = "—";
       subCell.textContent = "—";
+      if (useCell) useCell.textContent = "—";
     } else {
       var mm = Yardage.lengthMm(row.lengthCm);
       mmCell.textContent = isFinite(mm) ? Layout.formatMm(mm) : "—";
       subCell.textContent = "—";
+      if (useCell) useCell.textContent = "—";
     }
   }
 
@@ -283,10 +326,16 @@
     }
     els.yardageTotals.className = "yardage-totals";
     els.yardageTotals.innerHTML =
-      '<div class="yardage-stat"><span>净长</span><strong>' +
+      '<div class="yardage-stat"><span>成品净长</span><strong>' +
       Yardage.formatFixed(result.netM, 2) +
       " m</strong></div>" +
-      '<div class="yardage-stat"><span>损耗 ' +
+      '<div class="yardage-stat"><span>端扣废料</span><strong>' +
+      Yardage.formatFixed(result.endWasteM, 2) +
+      " m</strong></div>" +
+      '<div class="yardage-stat"><span>用料</span><strong>' +
+      Yardage.formatFixed(result.useM, 2) +
+      " m</strong></div>" +
+      '<div class="yardage-stat"><span>其它损耗 ' +
       Yardage.formatNum(result.lossPercent, 2) +
       "%</span><strong>" +
       Yardage.formatFixed(result.wasteM, 2) +
@@ -340,6 +389,7 @@
         '<td data-role="mm" class="num">—</td>' +
         '<td><input data-k="qty" type="number" inputmode="numeric" min="0" step="1" placeholder="件数" /></td>' +
         '<td data-role="sub" class="num">—</td>' +
+        '<td data-role="use" class="num">—</td>' +
         '<td class="row-acts">' +
         '<button type="button" class="btn-mini" data-act="layout">排版</button>' +
         '<button type="button" class="btn-mini danger" data-act="remove">删</button>' +
@@ -353,6 +403,14 @@
       updateRowComputed(tr, row);
       bindYardageRow(tr, index);
       els.yardageBody.appendChild(tr);
+    });
+    renderYardageTotals();
+  }
+
+  function refreshYardageComputed() {
+    if (!els.yardageBody) return;
+    Array.prototype.forEach.call(els.yardageBody.rows, function (tr, i) {
+      if (yardageState.rows[i]) updateRowComputed(tr, yardageState.rows[i]);
     });
     renderYardageTotals();
   }

@@ -31,12 +31,12 @@
 
       <div class="examples">
         <button type="button" id="ex170" class="on" data-example="170">
-          17 cm 双方案
-          <small>170 · 间距 30 · 6 扣 / 5 扣</small>
+          17 cm
+          <small>170 · 间距 30 · 止口位 ≥ 10</small>
         </button>
         <button type="button" id="ex150" data-example="150">
           15 cm 图例
-          <small>150 · 间距 30 · 5 扣 / 4 扣</small>
+          <small>150 · 间距 30 · 止口位 ≥ 10</small>
         </button>
       </div>
 
@@ -92,7 +92,7 @@
         <span>扣数 N <span class="unit">可空 = 自动选最多扣</span></span>
         <input id="count" type="number" inputmode="numeric" min="1" step="1" placeholder="自动" />
       </label>
-      <p class="hint">公式里的止口是扣中心到布边，允许 = 10 mm。图上另标<strong>止口位</strong>（扣外缘到布边 = 中心距边 − 扣半径）和<strong>扣径</strong>。自动方案只列出中心止口 ≤ 间距的排法；手填 N 可看其它排法。</p>
+      <p class="hint">可车缝<strong>止口位</strong>最小 10 mm（中心止口 − 本颗半径 − 伸进本片的循环扣）。循环扣在片外时即 15−4=11；压在裁口上时为 30−4−4=22。止口位不足 10 mm 的排法不列入自动方案。公式里的止口仍是扣中心到布边。</p>
       <div class="status" id="status" role="status"></div>
     </aside>
 
@@ -111,7 +111,7 @@
           <svg id="tapeSvg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="扣带排版图纸"></svg>
         </div>
         <p class="formula-line" id="formulaLine"></p>
-        <p class="foot-note">标注为毫米。式子：中心止口 + 间距 × 循环 + 中心止口 = 成品长。两端虚线扣按间距示意下一循环，不计入扣数。实扣为无孔。红色「止口」为扣外缘到布边；首扣红框为扣径。</p>
+        <p class="foot-note">标注为毫米。红色「止口」为可车缝止口位（不含两颗扣挡住的位置）。两端虚线扣为下一循环；成卷连裁时若其净止口位不足 10 mm 或对不齐下一片，计码按每片两端各废 1 扣（+2×间距）。</p>
       </div>
 
       <div class="panel table-wrap hidden" id="coordPanel">
@@ -158,7 +158,8 @@
                 <th>单件长 cm</th>
                 <th>成品长 mm</th>
                 <th>数量</th>
-                <th>小计 m</th>
+                <th>成品 m</th>
+                <th>用料 m</th>
                 <th></th>
               </tr>
             </thead>
@@ -172,7 +173,7 @@
         </div>
         <div class="yardage-totals" id="yardageTotals" role="status"></div>
         <p class="formula-line" id="yardageFormula"></p>
-        <p class="foot-note">式子：码长(yd) = Σ(单件长 cm × 数量) × (1 + 损耗%) ÷ 91.44。建议下单按 0.1 码进位，避免短码。</p>
+        <p class="foot-note">用料 = 成品长，或在两端废扣时为成品长 + 2×间距。再乘其它损耗%。码长(yd) = 用料 cm × (1+损耗%) ÷ 91.44。建议下单按 0.1 码进位。</p>
       </div>
     </section>
   </main>
