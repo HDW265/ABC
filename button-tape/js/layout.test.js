@@ -31,44 +31,52 @@ function approx(a, b, msg) {
   assert.ok(five.warning.indexOf("不合理") !== -1);
 })();
 
-(function test150D8FiveButtonSewable11() {
+(function test150D8OnlyFiveButtonRealizable() {
   var plan = L.plan({ W: 20, D: 8, S: 30, L: 150 });
   assert.strictEqual(plan.ok, true);
-  assert.strictEqual(plan.schemes.length, 2);
-  assert.strictEqual(plan.schemes[0].N, 5);
-  approx(plan.schemes[0].leftoverSewable, 11);
-  assert.strictEqual(plan.schemes[0].endsWasted, false);
-  approx(plan.schemes[0].useMm, 150);
-  assert.strictEqual(plan.schemes[1].N, 4);
-  approx(plan.schemes[1].leftoverSewable, 22);
-  assert.strictEqual(plan.schemes[1].endsWasted, true);
-  approx(plan.schemes[1].useMm, 210);
-})();
-
-(function test170D15DropsSixButton() {
-  var plan = L.plan({ W: 20, D: 15, S: 30, L: 170 });
-  assert.strictEqual(plan.ok, true);
-  assert.strictEqual(plan.nMax, 5);
   assert.strictEqual(plan.schemes.length, 1);
   assert.strictEqual(plan.schemes[0].N, 5);
-  approx(plan.schemes[0].M, 25);
-  assert.strictEqual(plan.schemes[0].formula, "25 + 30×4 + 25 = 170");
+  approx(plan.schemes[0].leftoverSewable, 11);
+  assert.strictEqual(plan.schemes[0].ghostInvasion, 0);
+  assert.strictEqual(plan.schemes[0].endsWasted, false);
+  approx(plan.schemes[0].useMm, 150);
+  var four = L.resolveSelection(plan, 4);
+  assert.strictEqual(four.source, "custom");
+  approx(four.scheme.leftoverSewable, 22);
+  approx(four.scheme.ghostInvasion, 4);
+  approx(four.scheme.ghostEdgeLeftover, -4);
+  assert.ok(four.warning.indexOf("无法实现") !== -1);
+})();
+
+(function test170D15NoAutoBecauseCutHitsButton() {
+  var plan = L.plan({ W: 20, D: 15, S: 30, L: 170 });
+  assert.strictEqual(plan.ok, true);
+  assert.strictEqual(plan.nMax, 0);
+  assert.strictEqual(plan.schemes.length, 0);
   var auto = L.resolveSelection(plan, null);
-  assert.strictEqual(auto.scheme.N, 5);
+  assert.strictEqual(auto.scheme, null);
+  assert.ok(auto.warning.indexOf("可裁可车") !== -1);
   var six = L.resolveSelection(plan, 6);
   assert.ok(six.warning.indexOf("不合理") !== -1);
   approx(six.scheme.leftoverSewable, 2.5);
+  var five = L.resolveSelection(plan, 5);
+  assert.strictEqual(five.source, "custom");
+  approx(five.scheme.M, 25);
+  assert.ok(five.warning.indexOf("无法实现") !== -1);
   var custom4 = L.resolveSelection(plan, 4);
   assert.strictEqual(custom4.source, "custom");
   approx(custom4.scheme.M, 40);
 })();
 
-(function test150D15OnlyFourButton() {
+(function test150D15FourButtonCutsThroughButton() {
   var plan = L.plan({ W: 20, D: 15, S: 30, L: 150 });
   assert.strictEqual(plan.ok, true);
-  assert.strictEqual(plan.schemes.length, 1);
-  assert.strictEqual(plan.schemes[0].N, 4);
-  approx(plan.schemes[0].leftoverSewable, 15);
+  assert.strictEqual(plan.schemes.length, 0);
+  var four = L.resolveSelection(plan, 4);
+  assert.strictEqual(four.source, "custom");
+  approx(four.scheme.leftoverSewable, 15);
+  assert.ok(four.scheme.ghostInvasion > 0);
+  assert.ok(four.warning.indexOf("无法实现") !== -1);
 })();
 
 (function testMMinIsLeftover10PlusRadius() {

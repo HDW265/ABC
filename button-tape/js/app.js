@@ -82,7 +82,7 @@
     els.count.value = "";
     if (kind === "150") {
       els.length.value = "150";
-      selectedN = 4;
+      selectedN = 5;
     } else {
       els.length.value = "170";
       selectedN = 5;
@@ -128,12 +128,13 @@
       els.schemeMeta.textContent = "无法生成方案";
       var empty = document.createElement("p");
       empty.className = "hint";
-      empty.textContent = "按左侧提示改规格后，这里会列出可点选的多种排法。";
+      empty.textContent = "按左侧提示改规格后，这里会列出可裁可车的排法。";
       els.schemeGrid.appendChild(empty);
       return;
     }
-    els.schemeMeta.textContent =
-      plan.schemes.length + " 种自动方案 · 最多 " + plan.nMax + " 扣";
+    els.schemeMeta.textContent = plan.schemes.length
+      ? plan.schemes.length + " 种自动方案 · 最多 " + plan.nMax + " 扣"
+      : "0 种可裁可车的自动方案";
 
     var shown = plan.schemes.slice();
     if (selection.scheme && selection.source === "custom") {
@@ -142,7 +143,8 @@
     if (!shown.length) {
       var none = document.createElement("p");
       none.className = "hint";
-      none.textContent = "没有自动方案。可手填扣数 N 试自定义排法。";
+      none.textContent =
+        "没有可裁可车的自动方案。裁口不能切过循环扣，止口位须 ≥ 10 mm。可手填扣数 N 查看为何不行。";
       els.schemeGrid.appendChild(none);
       return;
     }

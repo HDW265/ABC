@@ -1,7 +1,8 @@
 /**
  * 扣带排版计算（毫米）。
  * 成品长 L = 中心止口 M + 间距 S × (N-1) + 中心止口 M
- * 可车缝止口位 = M − 半径 − 伸进本片的循环扣；自动方案要求 ≥ 10 mm，且 M ≤ S。
+ * 可车缝止口位 = M − 半径 − 伸进本片的循环扣；自动方案要求 ≥ 10 mm，
+ * 且循环扣整颗在片外（裁口不能切过扣，止口里不能有扣位）。
  */
 (function (root, factory) {
   const api = factory();
@@ -197,8 +198,13 @@
     var M = marginFor(length, spacing, N);
     var cycles = N - 1;
     var sewable = leftoverSewableMm(M, spacing, D);
+    var invasion = ghostInvasionMm(M, spacing, D);
     var valid = N >= 1 && gt(M, D / 2);
-    var auto = valid && gte(sewable, LEFTOVER_MIN) && lte(M, spacing);
+    var auto =
+      valid &&
+      gte(sewable, LEFTOVER_MIN) &&
+      lte(M, spacing) &&
+      !gt(invasion, 0);
     var kind = "invalid";
     if (auto) kind = "auto";
     else if (valid) kind = "custom";
@@ -291,6 +297,14 @@
     var n = requestedN;
     var hasN = n !== null && n !== undefined && n !== "" && isFinite(Number(n));
     if (!hasN) {
+      if (!planResult.schemes.length) {
+        return {
+          scheme: null,
+          source: "auto",
+          warning:
+            "没有可裁可车的自动方案。裁口不能切过循环扣，可车缝止口位须 ≥ 10 mm。可改扣径或成品长，或手填扣数查看。",
+        };
+      }
       return {
         scheme: planResult.schemes[0] || null,
         source: "auto",
@@ -329,6 +343,9 @@
         "可车缝止口位 " +
         formatMm(custom.leftoverSewable) +
         " mm < 10 mm，不合理";
+    } else if (custom.valid && gt(custom.ghostInvasion, 0)) {
+      warning =
+        "循环扣压在裁口或止口里，扣位不能车缝，该排法无法实现";
     } else if (custom.valid && !custom.auto) {
       warning = "止口大于间距，看起来会像两端少排了一颗扣";
     }
