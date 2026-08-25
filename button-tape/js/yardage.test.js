@@ -84,7 +84,7 @@ function approx(a, b, msg) {
   assert.ok(text.indexOf("LC-S026-0401") !== -1);
   assert.ok(text.indexOf("1625.00 m") !== -1);
   assert.ok(text.indexOf("1706.25 m") !== -1);
-  assert.ok(text.indexOf("码") !== -1);
+  assert.ok(text.indexOf("1865.98") !== -1);
   assert.ok(text.indexOf("MIT") === -1);
 })();
 
