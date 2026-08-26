@@ -24,7 +24,8 @@ function approx(a, b, msg) {
   assert.strictEqual(plan.schemes[0].N, 4);
   approx(plan.schemes[0].leftoverSewable, 21);
   assert.strictEqual(plan.schemes[0].endsWasted, true);
-  approx(plan.schemes[0].useMm, 200);
+  approx(plan.schemes[0].wasteSeamMm, 10);
+  approx(plan.schemes[0].useMm, 150);
   var five = L.resolveSelection(plan, 5);
   assert.strictEqual(five.source, "custom");
   approx(five.scheme.leftoverSewable, 6);
@@ -79,9 +80,26 @@ function approx(a, b, msg) {
   assert.ok(four.warning.indexOf("无法实现") !== -1);
 })();
 
-(function testMMinIsLeftover10PlusRadius() {
+(function testMMinUsesLeftoverFloor() {
   approx(L.mMin(8), 14);
   approx(L.mMin(15), 17.5);
+  approx(L.mMin(8, 8), 12);
+})();
+
+(function testWasteSeamAndRowUse() {
+  approx(L.wasteSeamMm(140, 30, true), 10);
+  approx(L.wasteSeamMm(150, 30, false), 0);
+  approx(L.wasteSeamMm(165, 30, true), 15);
+  approx(L.rowUseMm(140, 1000, 10, 0, true), 150010);
+  approx(L.rowUseMm(140, 1, 10, 0, true), 160);
+  approx(L.rowUseMm(150, 3000, 0, 2, false), 450000);
+  approx(L.rowUseMm(140, 1000, 10, 2, true), 152012);
+})();
+
+(function testLeftoverMinEightKeeps150FiveButton() {
+  var plan = L.plan({ W: 20, D: 8, S: 30, L: 150, leftoverMin: 8 });
+  assert.strictEqual(plan.schemes.length, 1);
+  assert.strictEqual(plan.schemes[0].N, 5);
 })();
 
 (function testWidthSmallerThanButton() {

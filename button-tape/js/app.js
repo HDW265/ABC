@@ -10,6 +10,7 @@
     diameter: document.getElementById("diameter"),
     spacing: document.getElementById("spacing"),
     length: document.getElementById("length"),
+    leftoverMin: document.getElementById("leftoverMin"),
     count: document.getElementById("count"),
     status: document.getElementById("status"),
     schemeGrid: document.getElementById("schemeGrid"),
@@ -25,12 +26,17 @@
     contractNo: document.getElementById("contractNo"),
     orderNo: document.getElementById("orderNo"),
     lossPct: document.getElementById("lossPct"),
+    cutTol: document.getElementById("cutTol"),
     yardageBody: document.getElementById("yardageBody"),
     yardageTotals: document.getElementById("yardageTotals"),
     yardageFormula: document.getElementById("yardageFormula"),
     btnAddSize: document.getElementById("btnAddSize"),
     btnYardageExample: document.getElementById("btnYardageExample"),
+    btnYardageClear: document.getElementById("btnYardageClear"),
+    btnExpandSheets: document.getElementById("btnExpandSheets"),
+    btnCollapseSheets: document.getElementById("btnCollapseSheets"),
     btnCopyYardage: document.getElementById("btnCopyYardage"),
+    btnExportSheets: document.getElementById("btnExportSheets"),
   };
 
   var selectedN = 5;
@@ -39,6 +45,7 @@
   var lastYardage = null;
   var yardageState = {
     selected: -1,
+    expanded: {},
     rows: Yardage.exampleBundle().rows,
   };
 
@@ -52,6 +59,7 @@
       D: num(els.diameter),
       S: num(els.spacing),
       L: num(els.length),
+      leftoverMin: String(els.leftoverMin.value).trim() === "" ? 10 : num(els.leftoverMin),
     };
   }
 
@@ -77,7 +85,6 @@
 
   function applyPreset(kind) {
     els.width.value = "20";
-    els.diameter.value = "15";
     els.spacing.value = "30";
     els.count.value = "";
     if (kind === "150") {
@@ -144,7 +151,9 @@
       var none = document.createElement("p");
       none.className = "hint";
       none.textContent =
-        "没有可裁可车的自动方案。裁口不能切过循环扣，止口位须 ≥ 10 mm。可手填扣数 N 查看为何不行。";
+        "没有可裁可车的自动方案。裁口不能切过循环扣，止口位须 ≥ " +
+        Layout.formatMm(plan.spec.leftoverMin) +
+        " mm。可手填扣数 N 查看为何不行。";
       els.schemeGrid.appendChild(none);
       return;
     }
@@ -219,13 +228,18 @@
     if (selection.warning) {
       statusBox("warn", bits.join(" · ") + "。" + selection.warning);
     } else {
+      var T = Layout.formatMm(plan.spec.leftoverMin);
       var wasteNote = selection.scheme.endsWasted
-        ? "成卷连裁两端各废 1 扣，计码按成品长 + 2×间距。"
-        : "下一循环可接同一规格，计码不加端扣废料。";
+        ? "不能接下一片：片间废缝 " +
+          Layout.formatMm(selection.scheme.wasteSeamMm) +
+          " mm，计码含整卷头尾各一段废缝。"
+        : "下一循环可接同一规格，计码不加废缝、不加公差。";
       statusBox(
         "ok",
         bits.join(" · ") +
-          "。可车缝止口位 ≥ 10 mm。循环扣伸进本片的部分不能车。" +
+          "。可车缝止口位 ≥ " +
+          T +
+          " mm。循环扣须整颗在片外。" +
           wasteNote
       );
     }
@@ -247,21 +261,11 @@
       W: spec.W,
       D: spec.D,
       S: spec.S,
+      leftoverMin: spec.leftoverMin,
+      cutTol: String(els.cutTol.value).trim() === "" ? 0 : num(els.cutTol),
       selectedN: requestedN(),
       selectedL: spec.L,
     };
-  }
-
-  function schemeForYardageLength(lengthMm) {
-    var spec = currentSpec();
-    spec.L = lengthMm;
-    var plan = Layout.plan(spec);
-    var same = Math.abs(lengthMm - num(els.length)) < 0.05;
-    if (same) {
-      var sel = Layout.resolveSelection(plan, requestedN());
-      if (sel.scheme) return sel.scheme;
-    }
-    return (plan.schemes && plan.schemes[0]) || null;
   }
 
   function currentYardage() {
@@ -270,7 +274,8 @@
 
   function markSelectedRow() {
     if (!els.yardageBody) return;
-    Array.prototype.forEach.call(els.yardageBody.rows, function (tr, i) {
+    Array.prototype.forEach.call(els.yardageBody.querySelectorAll("tr[data-row]"), function (tr) {
+      var i = Number(tr.getAttribute("data-row"));
       tr.classList.toggle("selected", i === yardageState.selected);
     });
   }
@@ -287,31 +292,39 @@
     markSelectedRow();
   }
 
+  function fillSheet(sheetTr, parsed) {
+    var pre = sheetTr && sheetTr.querySelector(".worksheet");
+    if (!pre) return;
+    pre.textContent = parsed && parsed.ok ? Yardage.rowWorksheet(parsed, tapeOpts()) : "";
+  }
+
   function updateRowComputed(tr, row) {
     var parsed = Yardage.parseRow(row, 0);
     var mmCell = tr.querySelector("[data-role=mm]");
     var subCell = tr.querySelector("[data-role=sub]");
     var useCell = tr.querySelector("[data-role=use]");
+    var sheetTr = tr.nextElementSibling;
     if (parsed.ok) {
+      Yardage.attachPieceUse(parsed, tapeOpts());
       mmCell.textContent = Layout.formatMm(parsed.lengthMm);
-      var sch = schemeForYardageLength(parsed.lengthMm);
-      var useMm = sch ? sch.useMm : parsed.lengthMm;
-      var finishM = parsed.subtotalM;
-      var useM = (useMm * parsed.qty) / 1000;
-      subCell.textContent = Yardage.formatFixed(finishM, 2);
+      subCell.textContent = Yardage.formatFixed(parsed.subtotalM, 2);
       if (useCell) {
         useCell.textContent =
-          Yardage.formatFixed(useM, 2) + (sch && sch.endsWasted ? " 含废扣" : "");
+          Yardage.formatFixed(parsed.useCm / 100, 2) +
+          (parsed.endsWasted ? " 含废扣" : "");
       }
+      fillSheet(sheetTr, parsed);
     } else if (Yardage.rowIsEmpty(row)) {
       mmCell.textContent = "—";
       subCell.textContent = "—";
       if (useCell) useCell.textContent = "—";
+      fillSheet(sheetTr, null);
     } else {
       var mm = Yardage.lengthMm(row.lengthCm);
       mmCell.textContent = isFinite(mm) ? Layout.formatMm(mm) : "—";
       subCell.textContent = "—";
       if (useCell) useCell.textContent = "—";
+      fillSheet(sheetTr, null);
     }
   }
 
@@ -376,7 +389,13 @@
       if (!yardageState.rows.length) yardageState.rows.push(Yardage.blankRow());
       if (yardageState.selected === index) yardageState.selected = -1;
       else if (yardageState.selected > index) yardageState.selected -= 1;
+      delete yardageState.expanded[index];
       renderYardageTable();
+    });
+    tr.querySelector("[data-act=sheet]").addEventListener("click", function () {
+      yardageState.expanded[index] = !yardageState.expanded[index];
+      var sheet = tr.nextElementSibling;
+      if (sheet) sheet.classList.toggle("hidden", !yardageState.expanded[index]);
     });
   }
 
@@ -384,6 +403,7 @@
     els.yardageBody.innerHTML = "";
     yardageState.rows.forEach(function (row, index) {
       var tr = document.createElement("tr");
+      tr.setAttribute("data-row", String(index));
       if (index === yardageState.selected) tr.classList.add("selected");
       tr.innerHTML =
         '<td><input data-k="name" type="text" spellcheck="false" placeholder="如 6/12 AY" /></td>' +
@@ -393,25 +413,31 @@
         '<td data-role="sub" class="num">—</td>' +
         '<td data-role="use" class="num">—</td>' +
         '<td class="row-acts">' +
+        '<button type="button" class="btn-mini" data-act="sheet">演算</button>' +
         '<button type="button" class="btn-mini" data-act="layout">排版</button>' +
         '<button type="button" class="btn-mini danger" data-act="remove">删</button>' +
         "</td>";
+      var sheetTr = document.createElement("tr");
+      sheetTr.className = "yardage-sheet" + (yardageState.expanded[index] ? "" : " hidden");
+      sheetTr.innerHTML = '<td colspan="7"><pre class="worksheet"></pre></td>';
       var nameInput = tr.querySelector("[data-k=name]");
       var lenInput = tr.querySelector("[data-k=length]");
       var qtyInput = tr.querySelector("[data-k=qty]");
       nameInput.value = row.name == null ? "" : String(row.name);
       if (!Yardage.isBlank(row.lengthCm)) lenInput.value = String(row.lengthCm);
       if (!Yardage.isBlank(row.qty)) qtyInput.value = String(row.qty);
+      els.yardageBody.appendChild(tr);
+      els.yardageBody.appendChild(sheetTr);
       updateRowComputed(tr, row);
       bindYardageRow(tr, index);
-      els.yardageBody.appendChild(tr);
     });
     renderYardageTotals();
   }
 
   function refreshYardageComputed() {
     if (!els.yardageBody) return;
-    Array.prototype.forEach.call(els.yardageBody.rows, function (tr, i) {
+    Array.prototype.forEach.call(els.yardageBody.querySelectorAll("tr[data-row]"), function (tr) {
+      var i = Number(tr.getAttribute("data-row"));
       if (yardageState.rows[i]) updateRowComputed(tr, yardageState.rows[i]);
     });
     renderYardageTotals();
@@ -424,27 +450,65 @@
     els.lossPct.value = String(bundle.lossPercent);
     yardageState.rows = bundle.rows;
     yardageState.selected = -1;
+    yardageState.expanded = {};
     renderYardageTable();
   }
 
-  function copyYardage() {
-    var text = Yardage.summaryText(currentYardage(), yardageMeta());
+  function clearYardage() {
+    els.contractNo.value = "";
+    els.orderNo.value = "";
+    yardageState.rows = [Yardage.blankRow()];
+    yardageState.selected = -1;
+    yardageState.expanded = {};
+    renderYardageTable();
+  }
+
+  function setSheetsExpanded(open) {
+    yardageState.rows.forEach(function (_row, i) {
+      yardageState.expanded[i] = open;
+    });
+    Array.prototype.forEach.call(els.yardageBody.querySelectorAll("tr.yardage-sheet"), function (tr, i) {
+      tr.classList.toggle("hidden", !yardageState.expanded[i]);
+    });
+  }
+
+  function copyText(text, btn, idleLabel, doneLabel) {
     var done = function () {
-      els.btnCopyYardage.textContent = "已复制";
+      btn.textContent = doneLabel;
       setTimeout(function () {
-        els.btnCopyYardage.textContent = "复制码长";
+        btn.textContent = idleLabel;
       }, 1200);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done).catch(function () {
-        window.prompt("复制码长", text);
+        window.prompt(idleLabel, text);
       });
     } else {
-      window.prompt("复制码长", text);
+      window.prompt(idleLabel, text);
     }
   }
 
-  ["width", "diameter", "spacing", "length", "count"].forEach(function (id) {
+  function copyYardage() {
+    copyText(Yardage.summaryText(currentYardage(), yardageMeta()), els.btnCopyYardage, "复制码长", "已复制");
+  }
+
+  function exportSheets() {
+    var text = Yardage.worksheetText(currentYardage(), yardageMeta(), tapeOpts());
+    copyText(text, els.btnExportSheets, "导出演算", "已复制");
+    try {
+      var blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "yardage-worksheet.txt";
+      a.click();
+      setTimeout(function () {
+        URL.revokeObjectURL(url);
+      }, 500);
+    } catch (err) {}
+  }
+
+  ["width", "diameter", "spacing", "length", "leftoverMin", "count"].forEach(function (id) {
     els[id].addEventListener("input", render);
   });
 
@@ -452,18 +516,29 @@
     btn.addEventListener("click", function () {
       var id = btn.parentElement.getAttribute("data-target");
       document.getElementById(id).value = btn.getAttribute("data-value");
-      if (id === "lossPct") renderYardageTotals();
-      else render();
+      if (id === "lossPct" || id === "cutTol") {
+        setChipState();
+        refreshYardageComputed();
+      } else render();
     });
   });
 
   els.lossPct.addEventListener("input", renderYardageTotals);
+  els.cutTol.addEventListener("input", refreshYardageComputed);
   els.btnAddSize.addEventListener("click", function () {
     yardageState.rows.push(Yardage.blankRow());
     renderYardageTable();
   });
   els.btnYardageExample.addEventListener("click", loadYardageExample);
+  els.btnYardageClear.addEventListener("click", clearYardage);
+  els.btnExpandSheets.addEventListener("click", function () {
+    setSheetsExpanded(true);
+  });
+  els.btnCollapseSheets.addEventListener("click", function () {
+    setSheetsExpanded(false);
+  });
   els.btnCopyYardage.addEventListener("click", copyYardage);
+  els.btnExportSheets.addEventListener("click", exportSheets);
 
   els.ex170.addEventListener("click", function () {
     applyPreset("170");

@@ -90,20 +90,40 @@ function approx(a, b, msg) {
 
 (function testEndWasteOnD8Example() {
   var Lout = require("./layout.js");
-  var tape = { W: 20, D: 8, S: 30, Layout: Lout };
+  var tape = { W: 20, D: 8, S: 30, Layout: Lout, leftoverMin: 10, cutTol: 0 };
   var result = Y.summarize(Y.EXAMPLE.rows, 0, tape);
   assert.strictEqual(result.ok, true);
   approx(result.netM, 1625);
   assert.strictEqual(result.rows[0].endsWasted, true);
-  approx(result.rows[0].useMm, 200);
+  approx(result.rows[0].wasteSeamMm, 10);
+  approx(result.rows[0].useTotalMm, 150010);
+  approx(result.rows[0].useMm, 150.01);
   assert.strictEqual(result.rows[1].endsWasted, false);
   approx(result.rows[1].useMm, 150);
   assert.strictEqual(result.rows[2].endsWasted, true);
-  approx(result.rows[2].useMm, 225);
+  approx(result.rows[2].wasteSeamMm, 15);
+  approx(result.rows[2].useTotalMm, 540015);
   assert.strictEqual(result.rows[3].endsWasted, false);
   approx(result.rows[3].useMm, 180);
-  approx(result.endWasteM, 60 + 180);
-  approx(result.useM, 1625 + 240);
+  approx(result.useM, 150.01 + 450 + 540.015 + 540);
+  approx(result.endWasteM, result.useM - 1625);
+})();
+
+(function testNestableIgnoresCutTol() {
+  var Lout = require("./layout.js");
+  var tape = { W: 20, D: 8, S: 30, Layout: Lout, leftoverMin: 10, cutTol: 2 };
+  var result = Y.summarize([{ name: "1/2 YAS", lengthCm: 15, qty: 3000 }], 0, tape);
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.rows[0].endsWasted, false);
+  approx(result.useM, 450);
+})();
+
+(function testCutTolAddsOnWastedSeams() {
+  var Lout = require("./layout.js");
+  var tape = { W: 20, D: 8, S: 30, Layout: Lout, leftoverMin: 10, cutTol: 2 };
+  var result = Y.summarize([{ name: "6/12 AY", lengthCm: 14, qty: 1000 }], 0, tape);
+  assert.strictEqual(result.ok, true);
+  approx(result.rows[0].useTotalMm, 152012);
 })();
 
 (function testFormulaLineHasNoLicense() {

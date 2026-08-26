@@ -371,7 +371,7 @@ body {
 
 .yardage-meta {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 0.75rem 1rem;
   margin: 0.4rem 0 0.85rem;
 }
@@ -453,6 +453,26 @@ body {
 .btn-mini.danger:hover {
   border-color: var(--dim);
   color: var(--dim);
+}
+
+.yardage-sheet td {
+  padding-bottom: 0.75rem;
+}
+
+.worksheet {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  background: rgba(20, 32, 40, 0.04);
+  color: var(--ink-soft);
+  font: 0.78rem/1.45 var(--font-mono);
+  white-space: pre-wrap;
+}
+
+@media print {
+  .yardage-sheet.hidden {
+    display: table-row !important;
+  }
 }
 
 .yardage-actions {

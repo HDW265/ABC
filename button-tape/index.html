@@ -32,7 +32,7 @@
       <div class="examples">
         <button type="button" id="ex170" class="on" data-example="170">
           17 cm
-          <small>170 · 间距 30 · 止口位 ≥ 10</small>
+          <small>170 · 间距 30 · 止口下限可调</small>
         </button>
         <button type="button" id="ex150" data-example="150">
           15 cm 图例
@@ -54,11 +54,11 @@
 
       <label class="field">
         <span>扣径 D <span class="unit">mm（必填）</span></span>
-        <input id="diameter" type="number" inputmode="decimal" min="1" step="0.5" value="15" />
+        <input id="diameter" type="number" inputmode="decimal" min="1" step="0.5" value="8" />
         <div class="chips" data-target="diameter">
-          <button type="button" data-value="8">8</button>
+          <button type="button" data-value="8" class="on">8</button>
           <button type="button" data-value="11.5">11.5</button>
-          <button type="button" data-value="15" class="on">15</button>
+          <button type="button" data-value="15">15</button>
           <button type="button" data-value="18">18</button>
           <button type="button" data-value="20">20</button>
           <button type="button" data-value="25">25</button>
@@ -89,10 +89,21 @@
       </label>
 
       <label class="field">
+        <span>可车缝止口位下限 T <span class="unit">mm</span></span>
+        <input id="leftoverMin" type="number" inputmode="decimal" min="0.5" step="0.5" value="10" />
+        <div class="chips" data-target="leftoverMin">
+          <button type="button" data-value="6">6</button>
+          <button type="button" data-value="8">8</button>
+          <button type="button" data-value="10" class="on">10</button>
+          <button type="button" data-value="12">12</button>
+        </div>
+      </label>
+
+      <label class="field">
         <span>扣数 N <span class="unit">可空 = 自动选最多扣</span></span>
         <input id="count" type="number" inputmode="numeric" min="1" step="1" placeholder="自动" />
       </label>
-      <p class="hint">可车缝<strong>止口位</strong>最小 10 mm，且循环扣必须整颗在片外（裁口不能切过扣，止口里不能有扣位）。例如 150 mm、扣径 8：只有 <strong>15 + 30×4 + 15</strong> 可做；4 扣把裁口压在扣心上，无法实现。止口位不足 10 mm 的也不列入自动方案。</p>
+      <p class="hint">可车缝<strong>止口位</strong>须 ≥ 下限 T，且循环扣必须整颗在片外。例如 150 mm、扣径 8、T=10：只有 <strong>15 + 30×4 + 15</strong> 可做。不能接下一片时，计码按片间废缝 ⌈L/S⌉×S−L，再加整卷头尾各一段；切布公差只加在废缝上。</p>
       <div class="status" id="status" role="status"></div>
     </aside>
 
@@ -111,7 +122,7 @@
           <svg id="tapeSvg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="扣带排版图纸"></svg>
         </div>
         <p class="formula-line" id="formulaLine"></p>
-        <p class="foot-note">标注为毫米。红色「止口」为可车缝止口位。两端虚线扣为下一循环，必须整颗在片外才算可实现排法；裁口切过扣的方案只可手填查看，并标无法实现。成卷连裁若对不齐下一片或净止口不足 10 mm，计码按每片两端各废 1 扣（+2×间距）。</p>
+        <p class="foot-note">标注为毫米。红色「止口」为可车缝止口位。两端虚线扣须整颗在片外。成卷连裁能接下一片则用料=成品长；不能接则片间废 1 扣（废缝=对齐格子多出的布），整卷头尾再各计 1 段，并可加切布公差。</p>
       </div>
 
       <div class="panel table-wrap hidden" id="coordPanel">
@@ -149,6 +160,17 @@
               <button type="button" data-value="10">10</button>
             </div>
           </label>
+          <label class="field">
+            <span>切布公差 δ <span class="unit">mm · 仅废缝</span></span>
+            <input id="cutTol" type="number" inputmode="decimal" min="0" step="0.5" value="0" />
+            <div class="chips" data-target="cutTol">
+              <button type="button" data-value="0" class="on">0</button>
+              <button type="button" data-value="1">1</button>
+              <button type="button" data-value="2">2</button>
+              <button type="button" data-value="3">3</button>
+              <button type="button" data-value="5">5</button>
+            </div>
+          </label>
         </div>
         <div class="yardage-scroll">
           <table class="yardage-table">
@@ -169,11 +191,15 @@
         <div class="yardage-actions">
           <button type="button" class="btn ghost" id="btnAddSize">加一档规格</button>
           <button type="button" class="btn ghost" id="btnYardageExample">填入图例 LCM26-0210</button>
+          <button type="button" class="btn ghost" id="btnYardageClear">一键清理</button>
+          <button type="button" class="btn ghost" id="btnExpandSheets">全部展开</button>
+          <button type="button" class="btn ghost" id="btnCollapseSheets">全部收起</button>
           <button type="button" class="btn ghost" id="btnCopyYardage">复制码长</button>
+          <button type="button" class="btn ghost" id="btnExportSheets">导出演算</button>
         </div>
         <div class="yardage-totals" id="yardageTotals" role="status"></div>
         <p class="formula-line" id="yardageFormula"></p>
-        <p class="foot-note">用料 = 成品长，或在两端废扣时为成品长 + 2×间距。再乘其它损耗%。码长(yd) = 用料 cm × (1+损耗%) ÷ 91.44。建议下单按 0.1 码进位。</p>
+        <p class="foot-note">能接下一片：用料=成品长。不能接：用料=件数×成品长 + (件数+1)×(片间废缝+切布公差)，头尾两颗废扣计在 (件数+1) 段里。其它损耗%再乘在用料上。码长(yd)=含损耗 cm÷91.44。</p>
       </div>
     </section>
   </main>

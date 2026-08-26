@@ -1,8 +1,9 @@
 /**
  * 扣带排版计算（毫米）。
  * 成品长 L = 中心止口 M + 间距 S × (N-1) + 中心止口 M
- * 可车缝止口位 = M − 半径 − 伸进本片的循环扣；自动方案要求 ≥ 10 mm，
+ * 可车缝止口位 = M − 半径 − 伸进本片的循环扣；自动方案要求 ≥ 下限 T（默认 10 mm），
  * 且循环扣整颗在片外（裁口不能切过扣，止口里不能有扣位）。
+ * 不能接下一片时，片间废缝 = ⌈L/S⌉×S − L；Q 件用料 = Q×L + (Q+1)×(废缝+公差)。
  */
 (function (root, factory) {
   const api = factory();
@@ -38,15 +39,18 @@
     return String(r);
   }
 
-  var LEFTOVER_MIN = 10;
+  var LEFTOVER_MIN_DEFAULT = 10;
 
-  function leftoverMin() {
-    return LEFTOVER_MIN;
+  function leftoverMin(value) {
+    if (value == null || value === "") return LEFTOVER_MIN_DEFAULT;
+    var n = typeof value === "number" ? value : parseFloat(String(value).trim());
+    if (!isFinite(n)) return LEFTOVER_MIN_DEFAULT;
+    return n;
   }
 
-  /** 无循环扣侵入时，可车缝止口位 ≥ 10 所需的中心止口 */
-  function mMin(diameter) {
-    return LEFTOVER_MIN + Number(diameter) / 2;
+  /** 无循环扣侵入时，可车缝止口位 ≥ T 所需的中心止口 */
+  function mMin(diameter, minLeftover) {
+    return leftoverMin(minLeftover) + Number(diameter) / 2;
   }
 
   function nMax(length, spacing, minMargin) {
@@ -86,18 +90,47 @@
     return Math.abs(Number(margin) - Number(spacing) / 2) <= EPS;
   }
 
-  /** 成卷连裁同一规格时，两端下一循环是否作废 */
-  function endsWasted(margin, spacing, diameter) {
+  /** 成卷连裁同一规格时，能否直接对缝下一片 */
+  function endsWasted(margin, spacing, diameter, minLeftover) {
+    var T = leftoverMin(minLeftover);
     return !(
-      gte(ghostEdgeLeftoverMm(margin, spacing, diameter), LEFTOVER_MIN) &&
+      gte(ghostEdgeLeftoverMm(margin, spacing, diameter), T) &&
       nestsSameSpec(margin, spacing)
     );
   }
 
-  function pieceUseMm(length, spacing, margin, diameter) {
+  /** 下一刀对齐同一中心止口时，大于等于成品长的最小整格 */
+  function nextGridMm(length, spacing) {
     var L = Number(length);
     var S = Number(spacing);
-    return roundMm(endsWasted(margin, S, diameter) ? L + 2 * S : L);
+    if (!(S > 0) || !isFinite(L) || L < 0) return NaN;
+    return roundMm(Math.ceil((L - EPS) / S) * S);
+  }
+
+  /** 片间废缝：不能接片时为 ⌈L/S⌉×S − L，能接则为 0 */
+  function wasteSeamMm(length, spacing, wasted) {
+    if (!wasted) return 0;
+    var next = nextGridMm(length, spacing);
+    if (!isFinite(next)) return 0;
+    return roundMm(Math.max(0, next - Number(length)));
+  }
+
+  function pieceUseMm(length, spacing, margin, diameter, minLeftover) {
+    var L = Number(length);
+    var wasted = endsWasted(margin, spacing, diameter, minLeftover);
+    return roundMm(L + wasteSeamMm(L, spacing, wasted));
+  }
+
+  /** Q 件用料毫米：不能接片时含片间 Q−1 段 + 整卷头尾 2 段 = Q+1 段废缝 */
+  function rowUseMm(length, qty, seamMm, cutTolMm, wasted) {
+    var L = Number(length);
+    var Q = Number(qty);
+    if (!(Q > 0) || !isFinite(L)) return NaN;
+    if (!wasted) return roundMm(L * Q);
+    var seam = Number(seamMm) || 0;
+    var tol = Number(cutTolMm);
+    if (!isFinite(tol) || tol < 0) tol = 0;
+    return roundMm(L * Q + (Q + 1) * (seam + tol));
   }
 
   function buttonCenters(margin, spacing, count) {
@@ -161,8 +194,33 @@
     var D = parsePositive(input.D, "扣径 ", errors);
     var S = parsePositive(input.S, "间距 ", errors);
     var L = parsePositive(input.L, "成品长 ", errors);
+    var T = leftoverMin(input.leftoverMin);
+    if (input.leftoverMin != null && String(input.leftoverMin).trim() !== "") {
+      var rawT =
+        typeof input.leftoverMin === "number"
+          ? input.leftoverMin
+          : parseFloat(String(input.leftoverMin).trim());
+      if (!isFinite(rawT)) {
+        errors.push("可车缝止口位下限请填数字");
+        T = NaN;
+      } else if (!gt(rawT, 0)) {
+        errors.push("可车缝止口位下限必须大于 0");
+        T = rawT;
+      } else {
+        T = rawT;
+      }
+    }
     if (errors.length) {
-      return { ok: false, errors: errors, W: W, D: D, S: S, L: L, mMin: NaN };
+      return {
+        ok: false,
+        errors: errors,
+        W: W,
+        D: D,
+        S: S,
+        L: L,
+        leftoverMin: T,
+        mMin: NaN,
+      };
     }
     if (L > 10000) {
       errors.push("成品长超过 10000 mm，请检查是否误把单位当成 cm");
@@ -173,12 +231,10 @@
     if (!gt(S, D)) {
       errors.push("间距必须大于扣径（扣会重叠）");
     }
-    var minMargin = mMin(D);
+    var minMargin = mMin(D, T);
     if (!gt(L, 2 * minMargin)) {
       errors.push(
-        "成品长太短，无法保证左右可车缝止口位各 ≥ " +
-          formatMm(LEFTOVER_MIN) +
-          " mm"
+        "成品长太短，无法保证左右可车缝止口位各 ≥ " + formatMm(T) + " mm"
       );
     }
     return {
@@ -188,12 +244,14 @@
       D: D,
       S: S,
       L: L,
+      leftoverMin: T,
       mMin: minMargin,
     };
   }
 
-  function schemeFor(length, spacing, count, diameter) {
+  function schemeFor(length, spacing, count, diameter, minLeftover) {
     var D = Number(diameter);
+    var T = leftoverMin(minLeftover);
     var N = Math.round(Number(count));
     var M = marginFor(length, spacing, N);
     var cycles = N - 1;
@@ -201,14 +259,12 @@
     var invasion = ghostInvasionMm(M, spacing, D);
     var valid = N >= 1 && gt(M, D / 2);
     var auto =
-      valid &&
-      gte(sewable, LEFTOVER_MIN) &&
-      lte(M, spacing) &&
-      !gt(invasion, 0);
+      valid && gte(sewable, T) && lte(M, spacing) && !gt(invasion, 0);
     var kind = "invalid";
     if (auto) kind = "auto";
     else if (valid) kind = "custom";
-    var wasted = valid ? endsWasted(M, spacing, D) : true;
+    var wasted = valid ? endsWasted(M, spacing, D, T) : true;
+    var seam = valid ? wasteSeamMm(length, spacing, wasted) : 0;
     var scheme = {
       N: N,
       cycles: Math.max(0, cycles),
@@ -216,13 +272,15 @@
       L: roundMm(length),
       S: roundMm(spacing),
       D: roundMm(D),
-      mMin: roundMm(mMin(D)),
+      leftoverMin: roundMm(T),
+      mMin: roundMm(mMin(D, T)),
       leftover: leftoverMm(M, D),
       leftoverSewable: sewable,
       ghostInvasion: ghostInvasionMm(M, spacing, D),
       ghostEdgeLeftover: ghostEdgeLeftoverMm(M, spacing, D),
       endsWasted: wasted,
-      useMm: valid ? pieceUseMm(length, spacing, M, D) : roundMm(length),
+      wasteSeamMm: seam,
+      useMm: valid ? roundMm(Number(length) + seam) : roundMm(length),
       kind: kind,
       valid: valid,
       auto: auto,
@@ -264,10 +322,11 @@
       };
     }
 
+    var T = spec.leftoverMin;
     var n;
     var autoIndex = 0;
     for (n = nFit; n >= 1; n -= 1) {
-      var sch = schemeFor(spec.L, spec.S, n, spec.D);
+      var sch = schemeFor(spec.L, spec.S, n, spec.D, T);
       if (sch.auto) {
         sch.letter = letterAt(autoIndex);
         sch.title = "方案 " + sch.letter;
@@ -302,7 +361,9 @@
           scheme: null,
           source: "auto",
           warning:
-            "没有可裁可车的自动方案。裁口不能切过循环扣，可车缝止口位须 ≥ 10 mm。可改扣径或成品长，或手填扣数查看。",
+            "没有可裁可车的自动方案。裁口不能切过循环扣，可车缝止口位须 ≥ " +
+            formatMm(spec.leftoverMin) +
+            " mm。可改扣径、成品长或止口下限，或手填扣数查看。",
         };
       }
       return {
@@ -332,17 +393,20 @@
     if (match) {
       return { scheme: match, source: "auto", warning: "" };
     }
-    var custom = schemeFor(spec.L, spec.S, n, spec.D);
+    var custom = schemeFor(spec.L, spec.S, n, spec.D, spec.leftoverMin);
     custom.letter = "自";
     custom.title = "自定义";
     custom.subtitle =
       custom.N + " 扣 · 止口位 " + formatMm(custom.leftoverSewable) + " mm";
     var warning = "";
-    if (custom.valid && !gte(custom.leftoverSewable, LEFTOVER_MIN)) {
+    var T = leftoverMin(spec.leftoverMin);
+    if (custom.valid && !gte(custom.leftoverSewable, T)) {
       warning =
         "可车缝止口位 " +
         formatMm(custom.leftoverSewable) +
-        " mm < 10 mm，不合理";
+        " mm < " +
+        formatMm(T) +
+        " mm，不合理";
     } else if (custom.valid && gt(custom.ghostInvasion, 0)) {
       warning =
         "循环扣压在裁口或止口里，扣位不能车缝，该排法无法实现";
@@ -370,6 +434,7 @@
     roundMm: roundMm,
     formatMm: formatMm,
     leftoverMin: leftoverMin,
+    leftoverMinDefault: LEFTOVER_MIN_DEFAULT,
     mMin: mMin,
     nMax: nMax,
     marginFor: marginFor,
@@ -379,7 +444,10 @@
     ghostEdgeLeftoverMm: ghostEdgeLeftoverMm,
     nestsSameSpec: nestsSameSpec,
     endsWasted: endsWasted,
+    nextGridMm: nextGridMm,
+    wasteSeamMm: wasteSeamMm,
     pieceUseMm: pieceUseMm,
+    rowUseMm: rowUseMm,
     buttonCenters: buttonCenters,
     ghostCenters: ghostCenters,
     formulaText: formulaText,

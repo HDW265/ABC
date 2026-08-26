@@ -137,11 +137,32 @@
     return { ok: true, value: n, errors: [] };
   }
 
+  function parseCutTol(cutTolMm) {
+    if (isBlank(cutTolMm)) return { ok: true, value: 0, errors: [] };
+    var n = parseNumber(cutTolMm);
+    if (!isFinite(n)) {
+      return { ok: false, value: NaN, errors: ["切布公差请填数字"] };
+    }
+    if (n < 0) {
+      return { ok: false, value: n, errors: ["切布公差不能为负数"] };
+    }
+    return { ok: true, value: n, errors: [] };
+  }
+
   function attachPieceUse(parsed, tape) {
     parsed.useMm = parsed.lengthMm;
+    parsed.useTotalMm = parsed.lengthMm * parsed.qty;
     parsed.useCm = parsed.subtotalCm;
     parsed.endsWasted = false;
     parsed.schemeN = null;
+    parsed.wasteSeamMm = 0;
+    parsed.cutTolMm = 0;
+    parsed.seamCount = 0;
+    parsed.schemeFormula = "";
+    parsed.leftoverSewable = NaN;
+    parsed.schemeM = NaN;
+    parsed.unrealizable = false;
+    parsed.warning = "";
     if (!parsed || !tape || !tape.Layout || !(tape.S > 0) || !(tape.D > 0)) {
       return;
     }
@@ -151,6 +172,7 @@
       D: tape.D,
       S: tape.S,
       L: parsed.lengthMm,
+      leftoverMin: tape.leftoverMin,
     };
     var plan = Layout.plan(spec);
     var n = tape.selectedN;
@@ -167,16 +189,176 @@
       sch = sel.scheme;
     }
     if (!sch && plan.schemes && plan.schemes[0]) sch = plan.schemes[0];
-    if (!sch) return;
-    parsed.useMm = sch.useMm;
-    parsed.useCm = (sch.useMm / 10) * parsed.qty;
-    parsed.endsWasted = !!sch.endsWasted;
+    if (!sch) {
+      parsed.warning = (sel && sel.warning) || "无自动排法，用料暂按成品长";
+      return;
+    }
     parsed.schemeN = sch.N;
+    parsed.schemeFormula = sch.formula;
+    parsed.leftoverSewable = sch.leftoverSewable;
+    parsed.schemeM = sch.M;
+    parsed.unrealizable = !sch.auto;
+    parsed.warning = (sel && sel.warning) || "";
+    var wasted = !!sch.endsWasted && !!sch.auto;
+    if (!sch.auto) {
+      parsed.endsWasted = false;
+      parsed.useMm = parsed.lengthMm;
+      parsed.useTotalMm = parsed.lengthMm * parsed.qty;
+      parsed.useCm = parsed.subtotalCm;
+      return;
+    }
+    var seam = wasted ? Number(sch.wasteSeamMm) || 0 : 0;
+    var tol = wasted ? Number(tape.cutTol) || 0 : 0;
+    if (!(tol > 0)) tol = 0;
+    var totalMm = Layout.rowUseMm(parsed.lengthMm, parsed.qty, seam, tol, wasted);
+    parsed.endsWasted = wasted;
+    parsed.wasteSeamMm = seam;
+    parsed.cutTolMm = tol;
+    parsed.seamCount = wasted ? parsed.qty + 1 : 0;
+    parsed.useTotalMm = totalMm;
+    parsed.useMm = totalMm / parsed.qty;
+    parsed.useCm = totalMm / 10;
+  }
+
+  function rowWorksheet(parsed, tape) {
+    if (!parsed || !parsed.ok) return "";
+    tape = tape || {};
+    var Layout = tape.Layout;
+    var fmt = Layout && Layout.formatMm ? Layout.formatMm : formatNum;
+    var T =
+      tape.leftoverMin != null && tape.leftoverMin !== ""
+        ? Number(tape.leftoverMin)
+        : 10;
+    var lines = [];
+    var title = parsed.name ? parsed.name + "　" : "";
+    lines.push(
+      title +
+        formatNum(parsed.lengthCm, 2) +
+        " cm = " +
+        formatNum(parsed.lengthMm, 2) +
+        " mm × " +
+        formatNum(parsed.qty, 0)
+    );
+    if (parsed.schemeN) {
+      lines.push(
+        "排版：" +
+          parsed.schemeN +
+          " 扣　" +
+          (parsed.schemeFormula || "")
+      );
+    }
+    if (isFinite(parsed.leftoverSewable)) {
+      lines.push(
+        "止口位 " +
+          fmt(parsed.leftoverSewable) +
+          " mm，下限 T = " +
+          fmt(T) +
+          " mm"
+      );
+    }
+    if (parsed.unrealizable) {
+      lines.push(parsed.warning || "无自动排法，用料暂按成品长");
+      lines.push(
+        "成品 " +
+          formatFixed(parsed.subtotalM, 2) +
+          " m　用料 " +
+          formatFixed(parsed.useCm / 100, 2) +
+          " m"
+      );
+      return lines.join("\n");
+    }
+    if (!parsed.endsWasted) {
+      lines.push("可接同一规格，不加片间废缝、不加公差、不加头尾废扣");
+    } else {
+      lines.push(
+        "不能按间距一半对接。片间废缝 = ⌈L/S⌉×S − L = " +
+          fmt(parsed.wasteSeamMm) +
+          " mm（含 1 颗废扣）"
+      );
+      lines.push(
+        "整卷头尾各 1 段废缝，共 " +
+          formatNum(parsed.seamCount, 0) +
+          " 段"
+      );
+      lines.push("切布公差 δ = " + fmt(parsed.cutTolMm) + " mm");
+    }
+    lines.push(
+      "用料 = " +
+        formatNum(parsed.qty, 0) +
+        "×" +
+        fmt(parsed.lengthMm) +
+        (parsed.endsWasted
+          ? " + " +
+            formatNum(parsed.seamCount, 0) +
+            "×(" +
+            fmt(parsed.wasteSeamMm) +
+            "+" +
+            fmt(parsed.cutTolMm) +
+            ")"
+          : "") +
+        " = " +
+        fmt(parsed.useTotalMm) +
+        " mm = " +
+        formatFixed(parsed.useCm / 100, 2) +
+        " m"
+    );
+    lines.push("成品 " + formatFixed(parsed.subtotalM, 2) + " m");
+    return lines.join("\n");
+  }
+
+  function worksheetText(result, meta, tape) {
+    meta = meta || {};
+    tape = tape || {};
+    var lines = [];
+    var head = [meta.contractNo, meta.orderNo].filter(function (s) {
+      return s && String(s).trim();
+    });
+    if (head.length) lines.push(head.join(" / "));
+    if (tape.W || tape.D || tape.S) {
+      lines.push(
+        "布宽 " +
+          formatNum(tape.W, 2) +
+          " mm · 扣径 " +
+          formatNum(tape.D, 2) +
+          " mm · 间距 " +
+          formatNum(tape.S, 2) +
+          " mm · 止口下限 T " +
+          formatNum(tape.leftoverMin != null ? tape.leftoverMin : 10, 2) +
+          " mm · 切布公差 δ " +
+          formatNum(tape.cutTol || 0, 2) +
+          " mm"
+      );
+    }
+    lines.push("");
+    if (!result || !result.ok) {
+      lines.push((result && result.errors && result.errors.join("；")) || "请填写规格、单件长和数量");
+      return lines.join("\n");
+    }
+    result.rows.forEach(function (row, i) {
+      if (i) lines.push("");
+      lines.push(rowWorksheet(row, tape));
+    });
+    lines.push("");
+    lines.push(formulaLine(result));
+    lines.push(summaryText(result, meta));
+    return lines.join("\n");
   }
 
   function summarize(rows, lossPercent, tape) {
+    tape = tape || {};
     var loss = parseLoss(lossPercent);
-    var errors = loss.errors.slice();
+    var tol = parseCutTol(tape.cutTol);
+    var errors = loss.errors.concat(tol.errors);
+    var tapeUse = {
+      Layout: tape.Layout,
+      W: tape.W,
+      D: tape.D,
+      S: tape.S,
+      leftoverMin: tape.leftoverMin,
+      cutTol: tol.ok ? tol.value : 0,
+      selectedN: tape.selectedN,
+      selectedL: tape.selectedL,
+    };
     var used = [];
     var i;
     var parsed;
@@ -193,7 +375,8 @@
     var netCm = 0;
     var useCm = 0;
     for (i = 0; i < used.length; i += 1) {
-      attachPieceUse(used[i], tape);
+      attachPieceUse(used[i], tapeUse);
+      used[i].worksheet = rowWorksheet(used[i], tapeUse);
       netCm += used[i].subtotalCm;
       useCm += used[i].useCm;
     }
@@ -292,7 +475,10 @@
     ceilTo: ceilTo,
     rowIsEmpty: rowIsEmpty,
     parseRow: parseRow,
+    parseCutTol: parseCutTol,
     attachPieceUse: attachPieceUse,
+    rowWorksheet: rowWorksheet,
+    worksheetText: worksheetText,
     summarize: summarize,
     formulaLine: formulaLine,
     summaryText: summaryText,
